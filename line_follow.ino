@@ -41,10 +41,10 @@ void forward(int speed, int ms){
 
 void turn_raw(char direction, int ms=370, int speed=145 ){
   stop();
-  if (direction=='r'){
+  if (direction=='l'){
     digitalWrite(PIN_Motor_AIN_1,HIGH);
     digitalWrite(PIN_Motor_BIN_1,LOW);
-  }else if (direction=='l') {
+  }else if (direction=='r') {
     digitalWrite(PIN_Motor_AIN_1,LOW);
     digitalWrite(PIN_Motor_BIN_1,HIGH);
   }
@@ -55,9 +55,8 @@ void turn_raw(char direction, int ms=370, int speed=145 ){
 }
 int TURN_MULTIPLIER=.34;
 // int[5][3] prev_vals={}
-void loop() {
-  // put your main code here, to run repeatedly:
-  int left = analogRead(PIN_SENSOR_LEFT);
+void show_vals(){
+int left = analogRead(PIN_SENSOR_LEFT);
   int middle = analogRead(PIN_SENSOR_MIDDLE);
   int right = analogRead(PIN_SENSOR_RIGHT);
   Serial.print("left ");
@@ -66,21 +65,31 @@ void loop() {
   Serial.println(middle);
   Serial.print("right ");
   Serial.println(right);
+}
+void loop() {
+  // put your main code here, to run repeatedly:
+  int left = analogRead(PIN_SENSOR_LEFT);
+  int middle = analogRead(PIN_SENSOR_MIDDLE);
+  int right = analogRead(PIN_SENSOR_RIGHT);
+  
   
   if (middle <500 ){
-      if ((middle-left)>20) {
+      if ( right >500) {
         //int turn_speed = (middle-left)*TURN_MULTIPLER
-        turn_raw('r',50,70);
+        turn_raw('l',40,60);
       Serial.println("right");
+      show_vals();
     }
-    if ((middle-right)>20){
-      turn_raw('l',50,70);
+    if ( left >500){
+      turn_raw('r',40,60);
       Serial.println("left");
+      show_vals();
     }
-  
+    // delay(50);
+    show_vals();
+    forward(50,20);
   }
 
-  forward(50,30);
   
 
 }
