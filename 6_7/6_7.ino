@@ -108,6 +108,7 @@ void follow_white() {
     forward(50,20);
   }
 }
+
 void six_seven(){
   turn_arc('r', 5750,145, 3);
   delay(250);
