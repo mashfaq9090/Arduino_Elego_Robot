@@ -6,45 +6,11 @@
  * 
  */
 
-#include <Wire.h>
+#include "pin_def.h"
+#include "utils.h"
 #include <FastLED.h>
 #include <Servo.h>
-
-// ====== PIN CONSTANT VALUES ======
-
-#define NUM_LEDS 2            // Number of LEDs on your board
-#define PIN_RBGLED 4          // LED Pin
-#define PWR_R 5               // Right Motor Power
-#define PWR_L 6               // Left Motor Power
-#define MTR_R 8               // Right Motor Control
-#define MTR_L 7               // Left Motor Control
-#define SERVO 10              // Servo Motor
-#define MTR_ENABLE 3          // Motor Enable Pin
-#define US_OUT 13             // Ultrasonic Sensor Input
-#define US_IN 12              // Ultrasonic Sensor Output
-#define LINE_L A2             // Left Line Tracker
-#define LINE_C A1             // Center Line Tracker
-#define LINE_R A0             // Right Line Tracker
-#define BUTTON 2              // Push Button
-#define GYRO 0x68             // Gyro Sensor Address
-
-// ====== PROGRAM CONSTANTS ======
-#define SPEED_NORMAL 150
-#define SPEED_TURN 100
-#define LINE_THRESHOLD 900
-
-// ====== PROGRAM VARIABLES ======
-int16_t gyroZ;                // Raw gyro Z-axis reading
-float gyroZOffset = 0;        // Calibration offset
-float currentAngle = 0;       // Current angle in degrees
-unsigned long lastTime = 0;   // Last read time
-CRGB leds[NUM_LEDS];          // Current LED Color values
-Servo scanServo;              // Servo
-
-//=============================User Variable============================
-int distance = 0;
-
-//=======================================================================
+#include <Wire.h>
 
 
 void setup() {
@@ -99,23 +65,21 @@ void setup() {
   
 }
 
-//======================================================================
+//===================MOTOR FUNCTIONS============================
 
 void stop(){
   analogWrite(PWR_R, 0);
   analogWrite(PWR_L, 0); 
 }
 
-void forward(int speed, int ms){
+void forward(int speed){
   stop();
   digitalWrite(MTR_L, HIGH);
   digitalWrite(MTR_R, HIGH);
-  analogWrite(PWR_R, speed - 3);
-  analogWrite(PWR_L, speed + 5);
-  delay(ms);
-  stop();
-
+  analogWrite(PWR_R, speed);
+  analogWrite(PWR_L, speed + 3);
 }
+
 void turn_raw(char direction, int ms=370, int speed=145 ){
   stop();
   if (direction=='l'){
@@ -130,180 +94,108 @@ void turn_raw(char direction, int ms=370, int speed=145 ){
   delay(ms);
   stop();
 }
-//======================================================================
 
-//=====================CODE=============================================
+
+//=============================User Variable============================
+int straight_distance = 0;
+int r_distance = 10000;
+int l_distance = 10000;
+unsigned long lastServoMove = 0;
+int sweepStep = 0;
+//int angles[] = {90, 50, 40, 30, 90, 150, 160, 170, 90};
+//int angles[] = {30, 50, 70, 90, 110, 130, 150, 170, 150, 130, 110, 90, 70, 50};
+//int angles[] = {90, 40, 70, 90, 90, 90, 140, 170};
+//              0   1   2   3   4   5   6     7   
+int angles[] = {90, 10, 10, 90, 90, 170, 170};
+//              0   1   2   3    4   5    6
+bool go = true;
+int turn_speed = 200;
+int turn_duration = 120;
+//=======================================================================
+
+
+//===========================THE CODE======================================
 
 void loop() {
-  //our code
-  distance = getDistance();
 
-
-
-
-  if (distance > 20){
-    forward(100, 100);
-  } else {
-    turn_raw('r', 100, 140);
+  if (go) {
+    forward(40);
+    go = false;
   }
-}
 
-//=====================================================================
+  // Only move the servo every 500ms
+  if (millis() - lastServoMove > 150) {
+    setServoAngle(angles[sweepStep]);
+    if ((sweepStep == 1) || (sweepStep == 2)) {r_distance = getDistance();}
+    if (angles[sweepStep] == 90) {straight_distance = getDistance();}
+    if ((sweepStep == 5) || (sweepStep == 6)) {l_distance = getDistance();}
 
-void osilate_servo(int delta){
-  centerServo();
-  setServoAngle(90 + delta);
-  centerServo();
-  setServoAngle(90 - delta);
-}
-
-// ====== LED FUNCTIONS ======
-
-void ledOn(CRGB color) {
-  leds[0] = color;
-  FastLED.show();
-}
-
-void ledOff() {
-  leds[0] = CRGB::Black;
-  FastLED.show();
-}
-
-// ===== SERVO FUNCTIONS =====
-
-// Set servo angle (0–180 degrees)
-void setServoAngle(int angle) {
-  static int lastAngle = -1;
-  angle = constrain(angle, 0, 180);
-
-  if (angle != lastAngle) {
-    scanServo.write(angle);
-    delay(15);  // Allow servo to settle
-    lastAngle = angle;
-  }
-}
-
-
-// Center the servo
-void centerServo() {
-  setServoAngle(90);
-}
-
-
-// ====== GYRO FUNCTIONS ======
-
-// Initialize Gyro Sensor
-bool setupGyro() {
-  Wire.begin();
-  Wire.beginTransmission(GYRO);
-  Wire.write(0x6B);  // PWR_MGMT_1 register
-  Wire.write(0);     // Wake up MPU6050
-  byte error = Wire.endTransmission();
-  
-  if (error != 0) {
-    return false;
-  }
-  
-  // Configure gyro sensitivity (±250 deg/s)
-  Wire.beginTransmission(GYRO);
-  Wire.write(0x1B);  // GYRO_CONFIG register
-  Wire.write(0x00);  // ±250 deg/s
-  Wire.endTransmission();
-  
-  lastTime = millis();
-  return true;
-}
-
-// Calibrate gyro (robot must be stationary!)
-void calibrateGyro() {
-  delay(500);
-  
-  long sum = 0;
-  int samples = 100;
-  
-  for (int i = 0; i < samples; i++) {
-    Wire.beginTransmission(GYRO);
-    Wire.write(0x47);  // GYRO_ZOUT_H register
-    Wire.endTransmission(false);
-    Wire.requestFrom(GYRO, 2, true);
-    
-    int16_t gz = Wire.read() << 8 | Wire.read();
-    sum += gz;
-    delay(10);
-  }
-  
-  gyroZOffset = sum / samples;
-  currentAngle = 0;
-}
-
-// Read gyro Z-axis
-int16_t readGyroZ() {
-  Wire.beginTransmission(GYRO);
-  Wire.write(0x47);  // GYRO_ZOUT_H register
-  Wire.endTransmission(false);
-  Wire.requestFrom(GYRO, 2, true);
-  
-  int16_t gz = Wire.read() << 8 | Wire.read();
-  return gz;
-}
-
-// MUST be called frequently (e.g., every loop iteration)
-// Angle accuracy degrades if this is not called often
-void updateGyroAngle() {
-  unsigned long now = millis();
-  float dt = (now - lastTime) / 1000.0;  // Time in seconds
-  lastTime = now;
-  
-  // Read gyro
-  gyroZ = readGyroZ();
-  
-  // Convert to degrees per second (sensitivity = 131 for ±250 deg/s)
-  // INVERTED THE SIGN HERE to fix direction!
-  float gyroRate = -((gyroZ - gyroZOffset) / 131.0);
-  
-  // Integrate to get angle
-  currentAngle += gyroRate * dt;
-  
-  // Keep angle in range -180 to +180
-  if (currentAngle > 180) currentAngle -= 360;
-  if (currentAngle < -180) currentAngle += 360;
-}
-
-// Reset angle to zero
-void resetAngle() {
-  currentAngle = 0;
-}
-
-// Get current angle
-float getAngle() {
-  return currentAngle;
-}
-
-// ===== ULTRASONIC SENSOR FUNCTIONS =====
-
-// Returns distance in centimeters, or 0 if invalid
-int getDistance() {
-  int validReading = 0;
-  int attempts = 0;
-  
-  while (validReading == 0 && attempts < 3) {
-    if (attempts > 0) delay(60);  // Only delay on retries
-    
-    digitalWrite(US_OUT, LOW);
-    delayMicroseconds(2);
-    digitalWrite(US_OUT, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(US_OUT, LOW);
-    
-    long duration = pulseIn(US_IN, HIGH, 30000);
-    int distance = duration * 0.034 / 2;
-    
-    if (duration > 0 && distance <= 200) {
-      validReading = distance;
+    sweepStep++;
+    if (sweepStep > 6) {
+      sweepStep = 0; // Reset sweep
     }
     
-    attempts++;
+    lastServoMove = millis();
   }
-  
-  return validReading;
+
+  if ((r_distance < 25) || (l_distance < 25) || (straight_distance < 20)){
+    stop();
+    course_corection();
+    go = true;
+  } 
+  //============================debug====================
+  Serial.print("R: ");
+  Serial.print(r_distance);
+  Serial.print(" | L: ");
+  Serial.print(l_distance);
+  Serial.print(" | Straight: ");
+  Serial.println(straight_distance);
+
+  //======================================================
 }
+//=====================================================================
+
+//===============================SLAM==========================
+void course_corection() {
+  if (r_distance < l_distance){
+    Serial.println("=========LEFT=========");
+    turn_raw('l', turn_speed, turn_duration);
+    centerServo();
+    delay(10);
+    sweepStep = 0;
+    r_distance = 10000;
+    l_distance = 10000;
+    straight_distance = 10000;
+  }
+
+  if (r_distance > l_distance){
+    Serial.println("=========RIGHT=========");
+    turn_raw('r', turn_speed, turn_duration);
+    centerServo();
+    delay(10);
+    sweepStep = 0;
+    r_distance = 10000;
+    l_distance = 10000;
+    straight_distance = 10000;
+  }
+
+  if (r_distance == l_distance){
+    r_distance = 10000;
+    l_distance = 10000;
+    straight_distance = 10000;
+    ledOn(CRGB::Red);
+    setServoAngle(90);
+    delay(200);
+    if (getDistance() < 10){
+      setServoAngle(0);
+      delay(500);
+      r_distance = getDistance();
+      setServoAngle(180);
+      delay(500);
+      l_distance = getDistance();
+      ledOn(CRGB::Pink);
+      course_corection();
+    }
+  }
+}
+//=====================================================================
