@@ -154,7 +154,7 @@ void updateGyroAngle() {
   
   // Read gyro
   gyroZ = readGyroZ();
-  
+
   // Convert to degrees per second (sensitivity = 131 for ±250 deg/s)
   // INVERTED THE SIGN HERE to fix direction!
   float gyroRate = -((gyroZ - gyroZOffset) / 131.0);
