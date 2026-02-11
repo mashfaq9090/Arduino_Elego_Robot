@@ -113,6 +113,7 @@ void turnRaw(char direction, int ms = 370, int speed = 145) {
 void turnGyro(char direction, int degrees = 15, int speed = 145) {
   stop();
   if (direction == 'l') {
+    degrees = -degrees;
     digitalWrite(MTR_L, HIGH);
     digitalWrite(MTR_R, LOW);
   } else if (direction == 'r') {
