@@ -116,16 +116,23 @@ void turnGyro(char direction, int degrees = 15, int speed = 145) {
     degrees = -degrees;
     digitalWrite(MTR_L, HIGH);
     digitalWrite(MTR_R, LOW);
+    resetAngle();
+  while (getAngle() > degrees) {
+    analogWrite(PWR_R, speed);
+    analogWrite(PWR_L, speed);
+    updateGyroAngle();
+  }
   } else if (direction == 'r') {
     digitalWrite(MTR_L, LOW);
     digitalWrite(MTR_R, HIGH);
-  }
-  resetAngle();
+    resetAngle();
   while (getAngle() < degrees) {
     analogWrite(PWR_R, speed);
     analogWrite(PWR_L, speed);
     updateGyroAngle();
   }
+  }
+  
   stop();
 }
 
@@ -218,6 +225,7 @@ void servoSweep() {
 }
 void loop() {
   switch (state) {
+    
     case 0:
       stop();
       ledOn(CRGB(120, 20, 200));
@@ -227,15 +235,12 @@ void loop() {
           seenColorVals[1] = (analogRead(LINE_R));
           seenColorVals[2] = (analogRead(LINE_C));
           avoid = !avoid;
-          
           break;
-        }
-        else{
-
         }
       }
       state = 1;
       break;
+
     case 1:
       ledOn(CRGB(60, 230, 60));
       forward(BASESPEED);
@@ -250,6 +255,7 @@ void loop() {
         stop();
       }
       break;
+
     case 2:
       ledOn(CRGB(230,90,20));
       servoSweep();
