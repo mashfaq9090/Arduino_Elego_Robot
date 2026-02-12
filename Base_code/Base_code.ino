@@ -15,7 +15,7 @@ int seenColorVals[3];
 int state = 0;  // 0 = idle/stopped, 1 = forward/scanning, 2 = wall detected
 bool avoid = true;
 int turns = 0;
-int BASESPEED= 90;
+int BASESPEED = 90;
 void setup() {
   // setup LED
   FastLED.addLeds<NEOPIXEL, PIN_RBGLED>(leds, NUM_LEDS);
@@ -117,22 +117,22 @@ void turnGyro(char direction, int degrees = 15, int speed = 145) {
     digitalWrite(MTR_L, HIGH);
     digitalWrite(MTR_R, LOW);
     resetAngle();
-  while (getAngle() > degrees) {
-    analogWrite(PWR_R, speed);
-    analogWrite(PWR_L, speed);
-    updateGyroAngle();
-  }
+    while (getAngle() > degrees) {
+      analogWrite(PWR_R, speed);
+      analogWrite(PWR_L, speed);
+      updateGyroAngle();
+    }
   } else if (direction == 'r') {
     digitalWrite(MTR_L, LOW);
     digitalWrite(MTR_R, HIGH);
     resetAngle();
-  while (getAngle() < degrees) {
-    analogWrite(PWR_R, speed);
-    analogWrite(PWR_L, speed);
-    updateGyroAngle();
+    while (getAngle() < degrees) {
+      analogWrite(PWR_R, speed);
+      analogWrite(PWR_L, speed);
+      updateGyroAngle();
+    }
   }
-  }
-  
+
   stop();
 }
 
@@ -158,11 +158,13 @@ int turn_duration = 120;
 //===========================THE CODE======================================
 
 
-void followColor() {
-}
+
 bool detectNewColor() {
   int maxVal = max(seenColorVals[2], max(seenColorVals[0], seenColorVals[1])) + 130;
   int minVal = min(seenColorVals[2], min(seenColorVals[0], seenColorVals[1])) - 130;
+  int left = analogRead(LINE_L);
+  int center = analogRead(LINE_C);
+  int right = analogRead(LINE_R);
   // delay(300);
   Serial.println(avoid);
   // Serial.println(maxVal);
@@ -174,16 +176,16 @@ bool detectNewColor() {
   // Serial.print("l: ");
   // Serial.println(analogRead(LINE_L));
   if (avoid) {
-    BASESPEED=90;
-    if (minVal > analogRead(LINE_C) || analogRead(LINE_C) > maxVal) {
+    BASESPEED = 90;
+    if (minVal > center || center > maxVal) {
       stop();
       return true;
     }
-    if (minVal > analogRead(LINE_R) || analogRead(LINE_R) > maxVal) {
+    if (minVal > right || right > maxVal) {
       stop();
       return true;
     }
-    if (minVal > analogRead(LINE_L) || analogRead(LINE_L) > maxVal) {
+    if (minVal > left || left > maxVal) {
       stop();
       return true;
     }
@@ -192,16 +194,30 @@ bool detectNewColor() {
   }
 
   else {
-    BASESPEED=70;
-    if (minVal > analogRead(LINE_C) || analogRead(LINE_C) > maxVal) {
-      backward(30);
-      return true;
+    BASESPEED = 40;
+    if (minVal > center || center > maxVal) {
+      backward(20);
+      delay(200);
+      stop();
+      for (int i = 0; i < 4; i++) {
+        turnGyro('r');
+        if (minVal < center && center < maxVal) return;
+      }
+      turnGyro('l', 90, 90);
+      for (int i = 0; i < 4; i++) {
+        turnGyro('l');
+        if (minVal < center && center < maxVal) return;
+      }
+      if (minVal > center || center > maxVal) {
+        state = 0;
+        avoid = !avoid;
+      }
     }
-    if (minVal > analogRead(LINE_R) || analogRead(LINE_R) > maxVal) {
+    if (minVal > right || right > maxVal) {
       turnGyro('l', 10);
       return true;
     }
-    if (minVal > analogRead(LINE_L) || analogRead(LINE_L) > maxVal) {
+    if (minVal > left || left > maxVal) {
       turnGyro('r', 10);
       return true;
     }
@@ -224,8 +240,9 @@ void servoSweep() {
   }
 }
 void loop() {
+
   switch (state) {
-    
+
     case 0:
       stop();
       ledOn(CRGB(120, 20, 200));
@@ -257,7 +274,7 @@ void loop() {
       break;
 
     case 2:
-      ledOn(CRGB(230,90,20));
+      ledOn(CRGB(230, 90, 20));
       servoSweep();
       delay(200);
       courseCorrection();
@@ -268,7 +285,7 @@ void loop() {
       if (turns >= 10) {
         state = 0;
         turns = 0;
-        avoid = !avoid; 
+        avoid = !avoid;
       }
       turns++;
       // Serial.print(turns);
