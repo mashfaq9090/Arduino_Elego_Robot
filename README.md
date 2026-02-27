@@ -43,22 +43,22 @@ The 6_7 Folder is purely for the memes and only has one purpose when run to draw
 
     [Arduino IDE](https://www.arduino.cc/en/software/)
 
-### 3. IDE setup:
+### 3. IDE setup
 
 - From Board Manager -> Install Arduino AVR Broads if not already installed (1.8.7 or later)
 - From Library Manager -> install FastLED (3.10.3 or later)
 - Optional: File -> Preferences -> Check both for; show verbose output during compile and upload
 
-### 4. Board setup:  
+### 4. Board setup
 
     On the top left of the IDE click `Select Board`
     if Unkown on COMX is visible click on it otherwise click on __Select other board and port...__ then set board to Arduino UNO.
 
-### 5. Pre-run Test:
+### 5. Pre-run Test
 
-     Attempt to compile/Verify with the check mark in the top left corner (or with Ctrl + R). If this passes plug in robot ensure that the board and port are both recognized then  upload to test robot. (If port issues arise refer to ...).
+     Attempt to compile/Verify with the check mark in the top left corner (or with Ctrl + R). If this passes plug in robot ensure that the board and port are both recognized then  upload to test robot. (If port issues arise refer to (https://www.youtube.com/watch?v=D271p2E2_o4)).
 
-### 6. Troubleshooting and adjusting:
+### 6. Troubleshooting and adjusting
 
     With debug functions inside base_code.ino you can debug and find issues unique to your robot.
 
