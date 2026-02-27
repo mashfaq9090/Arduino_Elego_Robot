@@ -13,7 +13,7 @@ unsigned long lastTime = 0;   // Last read time
 CRGB leds[NUM_LEDS];          // Current LED Color values
 Servo scanServo;              // Servo
 
-//=======================QuickSort===============================
+//=======================QuickSort=============================== 
 
 // Function to swap two elements
 void swap(int* a, int* b) {
@@ -179,51 +179,6 @@ float getAngle() {
 
 // ===== ULTRASONIC SENSOR FUNCTIONS =====
 
-// Returns distance in centimeters, or 0 if invalid
-int getDistance_accuracy() {
-  int validReading = 0;
-  int attempts = 0;
-  
-  while (validReading == 0 && attempts < 3) {
-    if (attempts > 0) delay(60);  // Only delay on retries
-    
-    // digitalWrite(US_OUT, LOW);
-    // delayMicroseconds(2);
-    // digitalWrite(US_OUT, HIGH);
-    // delayMicroseconds(10);
-    // digitalWrite(US_OUT, LOW);
-    long duration = pulseIn(US_IN, HIGH, 30000);
-    int distance = duration * 0.034 / 2;
-
-    int distance_array[5] = {0};
-    for (int i = 0; i < 5; i++){
-
-      digitalWrite(US_OUT, LOW);
-      delayMicroseconds(2);
-      digitalWrite(US_OUT, HIGH);
-      delayMicroseconds(10);
-      digitalWrite(US_OUT, LOW);
-      duration = pulseIn(US_IN, HIGH, 30000);
-      distance = duration * 0.034 / 2;
-      distance_array[i] = distance;
-      delay(30);
-    }
-
-    quickSort(distance_array, 0, 4);
-
-    distance = distance_array[2];
-
-    if (duration > 0 && distance <= 200) {
-      validReading = distance;
-    }
-    
-    attempts++;
-  }
-  
-  return validReading;
-}
-
-
 int getDistance() {
   int validReading = 0;
   int attempts = 0;
@@ -237,6 +192,54 @@ int getDistance() {
     digitalWrite(US_OUT, LOW);
     long duration = pulseIn(US_IN, HIGH, 30000);
     int distance = duration * 0.034 / 2;
+
+    if (duration > 0 && distance <= 200) {
+      validReading = distance;
+    }
+    
+    attempts++;
+  }
+  
+  return validReading;
+}
+
+
+
+// Returns distance in centimeters, or 0 if invalid
+//XXXXXXXXX Over Engineered for more statistically significant and error corrected value XXXXXXXXX
+int getDistance_accuracy() { 
+  int validReading = 0;
+  int attempts = 0;
+  
+  while (validReading == 0 && attempts < 3) {
+    if (attempts > 0) delay(60);  // Only delay on retries
+    
+    // digitalWrite(US_OUT, LOW);
+    // delayMicroseconds(2);
+    // digitalWrite(US_OUT, HIGH);
+    // delayMicroseconds(10);
+    // digitalWrite(US_OUT, LOW);
+    long duration = pulseIn(US_IN, HIGH, 30000);
+    int distance = duration * 0.034 / 2;
+    int sample_size = 5;
+
+    int distance_array[sample_size] = {0};
+    for (int i = 0; i < sample_size; i++){
+
+      digitalWrite(US_OUT, LOW);
+      delayMicroseconds(2);
+      digitalWrite(US_OUT, HIGH);
+      delayMicroseconds(10);
+      digitalWrite(US_OUT, LOW);
+      duration = pulseIn(US_IN, HIGH, 30000);
+      distance = duration * 0.034 / 2;
+      distance_array[i] = distance;
+      delay(30);
+    }
+
+    quickSort(distance_array, 0, sample_size - 1); 
+
+    distance = distance_array[(sample_size - 1)/2];
 
     if (duration > 0 && distance <= 200) {
       validReading = distance;
