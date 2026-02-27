@@ -1,11 +1,19 @@
 /*
  * CSCI 1063U - Elegoo Smart Car V4.0
  *
- * Starter Code for motor, pin, and sensor setup
- * Provided to students for use and understanding
  * 
- */
+*/
 
+/*
+ ----> Line sensor threshold needs to be mannually calibrated depending on maze structure. 
+ This code follows light runway with dark barriers
+
+ ---> The Rover runs with or without gyroscope(controled via gyro_using variable)...incase not using gyroscope 
+ the turn_raw must be mannual calibrated
+
+ ---> Fell free to change the code as needed :) 
+
+*/
 #include "pin_def.h"
 #include "utils.h"
 #include <FastLED.h>
@@ -14,6 +22,9 @@
 
 
 void setup() {
+  //random seed 
+  bool gyro_using = false;
+  randomSeed(analogRead(0));
 
   // setup LED
   FastLED.addLeds<NEOPIXEL, PIN_RBGLED>(leds, NUM_LEDS);
@@ -55,8 +66,9 @@ void setup() {
 
   delay(500);
 
-  // Initialize Gyro - hard stop if failed
-  if (!setupGyro()) {
+  // Initialize Gyro - hard stop if failed 
+
+  if (!setupGyro() && gyro_using) {
     ledOn(CRGB::Red);
     while (true);  // Hard stop
   }
@@ -80,7 +92,17 @@ void forward(int speed){
   analogWrite(PWR_L, speed + 3);
 }
 
-void turn_raw(char direction, int ms=370, int speed=145 ){
+void backward(int speed){
+  stop();
+  digitalWrite(MTR_L, LOW);
+  digitalWrite(MTR_R, LOW);
+  analogWrite(PWR_R, speed);
+  analogWrite(PWR_L, speed + 3);
+}
+
+
+
+void turn_raw(char direction, int ms=370, int speed=145 ){ //time based turning...calibrate time and speed manually
   stop();
   if (direction=='l'){
     digitalWrite(MTR_L,HIGH);
@@ -95,9 +117,10 @@ void turn_raw(char direction, int ms=370, int speed=145 ){
   stop();
 }
 
-void turnGyro(char direction, int targetDegrees = 15, int speed = 120, int ms = 90) {
+void turnGyro(char direction, int targetDegrees = 15, int speed = 120, int ms = 90) { 
   stop();
   resetAngle();
+  
   
   unsigned long startTime = millis();
   const unsigned long timeout = 2000; // safety timeout (2 seconds)
@@ -144,27 +167,23 @@ void turnGyro(char direction, int targetDegrees = 15, int speed = 120, int ms = 
 }
 
 //=============================User Variable============================
-int straight_distance = 0;
-int r_distance = 10000;
-int l_distance = 10000;
-unsigned long lastServoMove = 0;
-int sweepStep = 0;
-//int angles[] = {90, 50, 40, 30, 90, 150, 160, 170, 90};
-//int angles[] = {30, 50, 70, 90, 110, 130, 150, 170, 150, 130, 110, 90, 70, 50};
-//int angles[] = {90, 40, 70, 90, 90, 90, 140, 170};
-//              0   1   2   3   4   5   6     7   
-int angles[] = {90, 10, 10, 90, 90, 170, 170};
-//              0   1   2   3    4   5    6
+
 bool go = true;
+//-----------Use only when you want to globally contro the turning parameter---------------
 int turn_speed = 200;
 int turn_duration = 120;
 int turn_gyro_speed = 50;
-bool sonar_triger = false;
+//----------------------------------------------------------------------------------
+bool sonar_triger = false; //use only when implementing sonar based navigation
 bool line_triger = false;
+bool turn_90triger = false;
 int line_right = 0;
 int line_left = 0;
 int line_middle = 0;
-int base_speed = 35;
+int base_speed = 50;
+int distance = 10000;
+int left_or_right = 0;
+int r_distance, straight_distance, l_distance; //used for 
 //=======================================================================
 
 
@@ -172,117 +191,137 @@ int base_speed = 35;
 
 void loop() {
 
-  line_left = analogRead(LINE_L);
+  line_left = analogRead(LINE_L) - 170; //calibrating...this one is usually a bit high than others
   line_middle = analogRead(LINE_C);
   line_right = analogRead(LINE_R);
-
-
+  distance = getDistance();
+  
   if (go) {
     forward(base_speed);
-    //turnGyro('l', 25, 50, 90);
     go = false;
   }
 
-  // Only move the servo every 500ms
-  if (millis() - lastServoMove > 300) {
-    setServoAngle(angles[sweepStep]);
-    if ((sweepStep == 1) || (sweepStep == 2)) {r_distance = getDistance();}
-    if (angles[sweepStep] == 90) {straight_distance = getDistance();}
-    if ((sweepStep == 5) || (sweepStep == 6)) {l_distance = getDistance();}
 
-    sweepStep++;
-    if (sweepStep > 6) {
-      sweepStep = 0; // Reset sweep
-    }
-    
-    lastServoMove = millis();
+  turn_90triger = (line_left > 600 && line_right > 600 && line_middle > 600); //trigers full 90 degree rotation when all sensors are in the tape
+  line_triger = (line_left > 600 || line_right > 600); // for attitude adjustment 
+
+
+//=============================Box entrance logic=================
+  if (distance < 18){
+      while (distance > 8){
+        forward(100);
+        distance = getDistance();
+        Serial.println(distance);
+      }
+      stop();
+      digitalWrite(MTR_ENABLE, LOW);
   }
 
-  sonar_triger = (r_distance < 25) || (l_distance < 25) || (straight_distance < 20);
-  line_triger = (line_left > 500 || line_right > 500);
 
-  if (sonar_triger || line_triger){
+//================Course Correction Triger Logic===========
+  if (line_triger || turn_90triger){
     stop();
     course_corection();
     go = true;
   } 
-  //============================debug====================
-  // Serial.print("R: ");
-  // Serial.print(r_distance);
-  // Serial.print(" | L: ");
-  // Serial.print(l_distance);
-  // Serial.print(" | Straight: ");
-  // Serial.println(straight_distance);
 
-  // //=========================line - debug================
-  // Serial.print("R: ");
-  // Serial.print(line_right);
-  // Serial.print(" | L: ");
-  // Serial.print(line_left);
-  // Serial.print(" | middle: ");
-  // Serial.println(line_middle);
-
-  //======================================================
 }
-//=====================================================================
 
-//===============================SLAM==========================
+//=================Course_correction========================
 void course_corection() {
 
-  if (line_right > line_left){
+  left_or_right = random(2);  // random logic only used for custom maze....
+  //better use right only turn for Original maze...alrhough random should work for both
+
+  if (line_left > 600 && line_right > 600 && line_middle > 600){ 
+    Serial.println("=========TURN 90=========");
+    backward(35);
+    delay(200);
+    stop();
+    delay(400);
+    if (left_or_right == 0) {
+      //turn_raw('l', 600, 100); //------------> optimized for 90 degree turn
+      turn_raw('r', 550, 100);  //------------> Used for Custom maze
+    } 
+
+    if (left_or_right == 1) {
+      //turn_raw('l', 600, 100); //------------> optimized for 90 degree turn
+      turn_raw('l', 550, 100); //------------> Used for Custom maze
+    } 
+    return;
+  }
+
+  //for attitude corection 
+  if (line_right > line_left && abs(line_right - line_left) > 160){
     Serial.println("=========LEFT=========");
-    turnGyro('l', 25, turn_gyro_speed, 90);
+    //turnGyro('l', 10, 100, 50);
+    turn_raw('l', 140, 90);
+    return;
     
   }
 
-  if (line_left > line_right){
+  if (line_left > line_right && abs(line_right - line_left) > 160){
     Serial.println("=========RIGHT=========");
-    turnGyro('r', 25, turn_gyro_speed, 90);
+    //turnGyro('r', 10, 100, 50);
+    turn_raw('r', 140, 90); 
+    return;
 
   }
 
-
-  if (r_distance < l_distance){
-    Serial.println("=========LEFT=========");
-    turn_raw('l', turn_speed, turn_duration);
-    centerServo();
-    delay(10);
-    sweepStep = 0;
-    r_distance = 10000;
-    l_distance = 10000;
-    straight_distance = 10000;
-  }
-
-  if (r_distance > l_distance){
-    Serial.println("=========RIGHT=========");
-    turn_raw('r', turn_speed, turn_duration);
-    centerServo();
-    delay(10);
-    sweepStep = 0;
-    r_distance = 10000;
-    l_distance = 10000;
-    straight_distance = 10000;
-  }
-
-  if ((r_distance == l_distance) && (straight_distance < 20)){
-    r_distance = 10000;
-    l_distance = 10000;
-    straight_distance = 10000;
-    ledOn(CRGB::Red);
-    setServoAngle(90); //looking straight
-    delay(200);
-    if (getDistance() < 10){
-      setServoAngle(0); //looking right
-      delay(500);
-      r_distance = getDistance();
-      setServoAngle(180); //looking left
-      delay(500);
-      l_distance = getDistance();
-      setServoAngle(90);
-      delay(325);
-      ledOn(CRGB::Purple);
-      course_corection(); //recursion untill clears out of trap
-    }
-  }
 }
-//=====================================================================
+
+//Servo Sweep ---> angle_array accepts an set of exact angle the servo needs to traverse like the following
+// //int angles[] = {90, 40, 70, 90, 90, 90, 140, 170};
+void servo_sweep(int& r_distance, int& straight_distance, int& l_distance, int* angle_array, int array_len){
+  unsigned long lastServoMove = 0;
+  int sweepStep = array_len;
+
+    if (millis() - lastServoMove > 300) {
+      setServoAngle(angle_array[sweepStep]);
+      if ((sweepStep == 1) || (sweepStep == 2)) {r_distance = getDistance();}
+      if (angle_array[sweepStep] == 90) {straight_distance = getDistance();}
+      if ((sweepStep == 5) || (sweepStep == 6)) {l_distance = getDistance();}
+
+      sweepStep++;
+      if (sweepStep > 6) {
+        sweepStep = 0; // Reset sweep
+      }
+      
+      lastServoMove = millis();
+    }
+}
+
+
+
+//============================ Sonar Sensor debug====================
+void sonar_debug(){
+  Serial.print("R: ");
+  Serial.print(r_distance);
+  Serial.print(" | L: ");
+  Serial.print(l_distance);
+  Serial.print(" | Straight: ");
+  Serial.println(straight_distance);
+  Serial.println("distance" + String(distance));
+}
+
+//=========================Line Sensor debug================
+void line_debug(){
+  Serial.print("R: ");
+  Serial.print(line_right);
+  Serial.print(" | L: ");
+  Serial.print(line_left);
+  Serial.print(" | middle: ");
+  Serial.print(line_middle);
+  Serial.println("");
+}
+
+
+// ===================Gyro Sensor Debug====================== 
+void gyro_debug(){   
+  updateGyroAngle();
+  int angle = getAngle();
+  Serial.print("Angle: ------> ");
+  Serial.println(angle);
+  Serial.print("*");
+  Serial.println("");
+}
