@@ -1,30 +1,41 @@
 # Arduino Elego Robot
 
-This repository contains code for an Elego line-following robot project using an Arduino. The project is organized into several sketches and a `Base_code` folder which holds shared definitions and utilities.
+This repository contains code for arduino based rover used in an intoductory course (CSCI 1063U – Computer Programming Project) at the Ontario Tech University. 
 
 ## Hardware Assumptions
 
-- Used ardunio kit is ELEGOO Smart Robot Car Kit V4.0 (or similar model with An Ardunio UNO Board)  
-- The left wheel is around 1.17% weaker than the right (requiring the analog output to be 3 higher)
-- That the gyroscope is sometimes unreliable needing to turn based on timing.
-- The line detection left sensor value is 170 weaker on average and that the colour you would like to avoid is greater than 500 in sensor value.
+The code is specifically written for `ELEGOO Smart Robot Car Kit V4.0`
 
-## Structure
+The particular unit used by our group had the following constraints 
 
-- `6_7/6_7.ino` - Additional experiment code .
-- `Base_code/` - Contains common code used across sketches:
-  - `Base_code.ino` - Example base sketch that includes shared setup/loop structure.
-  - `pin_def.h` - Pin definitions for sensors and motors.
-  - `utils.cpp` & `utils.h` - Utility functions used by multiple sketches.
-- `libraries/FastLED/` - FastLED library for LED control (already included for reference).
+- The left wheel is around 1.17% weaker than the right (requiring the analog output to be 3 units higher)
+
+- That the gyroscope is sometimes unreliable needing to turn based on timing which are manually calibrated.
+- The line detection left sensor value is 170 units weaker 
+
+## Code base Structure
+
+- `6_7/6_7.ino` -> Experiment code that draws the number 67. Can safely ignore
+- `Base_code/` 
+  - `Base_code.ino` -> Contains main logic for solving maze.
+  - `pin_def.h` -> Pin definitions for sensors and motors.
+  - `utils.cpp` & `utils.h` -> Utility functions used by `Base_code.ino`. Contains all the sensor functions
+- Additional Libraries -> `FastLED`: used for LED control (already included for reference).
 
 ## Base_code Folder
 
-The `Base_code` folder is intended as a starting point for new sketches. It defines the pin mappings and utility routines so users can copy or include these files in their own projects. By centralizing common code here, maintenance and updates become easier.
+The `Base_code/Base_code.ino` is intended as a starting point for new funtinality. Treat it as the main file. `pin_def.h` defines the pin mappings. Any additional sensors need to be included there. `utils.cpp` & `utils.h` are intended to include functions and APIs for new sensor that the `Base_code.ino` can call. By de-centralizing code into multiple files, maintenance and updates become easier.
 
-To start with the robot will go forward until it encounters a wall by sweeping its servo, checking its surroundings / or a bright color surface below it then with turn to avoid it  
+### Current logic
+Currently the code is intended for the rover to traverse and solve a distinct bi-color maze. The rover uses the IR sensor to measure the light intensity being reflected from the ground material. Darker ground/line gives lower values and lighter gives higher values. 
 
-Feel free to adapt or expand the base code as your project evolves.
+The robot will go forward until it encounters a  bright color surface below it. If the all the all three sensor touch the bright color object, then it will signal an 90 degree turn. If the rover drifts into the maze lining in which case eiter left or right sensor will get trigered, the rover will correct it's corse accordingly. 
+
+For the sake of solving the maze the rover randomly decides on a 50% probability wheater to make a right or left 90 degree turn.
+
+`Inline comments are used heavily to accomodate beginers and explain specific funtionality further`
+
+`Feel free to adapt or expand the base code according to your projects need.`
 
 ## 6_7 Folder
 
@@ -62,7 +73,7 @@ The 6_7 Folder is purely for the memes and only has one purpose when run to draw
 
     With debug functions inside base_code.ino you can debug and find issues unique to your robot.
 
-## Known issues
+## Known issues for our specific unit
 
-- The right motor is slightly stronger than the left  and the left color value is significantly this is reflected in base_code.ino file.
-- With the ELEGOO Smart Robot Car Kit V4.0 the camera and all its functionallity is not used inside any of the code
+- The right motor is slightly stronger than the left  and the left color value is a bit higher this is reflected in base_code.ino file.
+- Not all functionality of the ELEGOO Smart Robot Car Kit V4.0 is used in our code. 
