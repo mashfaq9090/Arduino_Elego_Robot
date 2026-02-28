@@ -29,9 +29,9 @@ The `Base_code/Base_code.ino` is intended as a starting point for new funtinalit
 ### Current logic
 Currently the code is intended for the rover to traverse and solve a distinct bi-color maze. The rover uses the IR sensor to measure the light intensity being reflected from the ground material. Darker ground/line gives lower values and lighter gives higher values. 
 
-The robot will go forward until it encounters a  bright color surface below it. If the all the all three sensor touch the bright color object, then it will signal an 90 degree turn. If the rover drifts into the maze lining in which case eiter left or right sensor will get trigered, the rover will correct it's corse accordingly. 
+The robot will go forward until it encounters a  bright color surface below it. If all three sensor touch the bright color object, then it will signal an 90 degree turn. If the rover drifts into the maze lining in which case eiter left or right sensor will get trigered, the rover will then correct it's corse accordingly. 
 
-For the sake of solving the maze the rover randomly decides on a 50% probability wheater to make a right or left 90 degree turn.
+For the sake of solving the maze the rover randomly decides on a 50% probability whether to make a right or left 90 degree turn.
 
 `Inline comments are used heavily to accomodate beginers and explain specific funtionality further`
 
