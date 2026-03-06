@@ -74,6 +74,9 @@ void setup() {
   }
 
   calibrateGyro();
+  seenColorVals[0] = (analogRead(LINE_L)-170);
+  seenColorVals[1] = (analogRead(LINE_R));
+  seenColorVals[2] = (analogRead(LINE_C));
   
 }
 
@@ -115,6 +118,71 @@ void turn_raw(char direction, int ms=370, int speed=145 ){ //time based turning.
   analogWrite(PWR_L, speed);
   delay(ms);
   stop();
+}
+
+bool detectNewColor() {
+  int maxVal = max(seenColorVals[2], max(seenColorVals[0], seenColorVals[1])) + 130;
+  int minVal = min(seenColorVals[2], min(seenColorVals[0], seenColorVals[1])) - 130;
+  Serial.println(avoid);
+  unsigned long startTime = millis();
+  const unsigned long timeout = 2000;
+  bool avoid = true;
+  if (avoid) {
+    if (minVal > analogRead(LINE_C) || analogRead(LINE_C) > maxVal) {
+      while (digitalRead(BUTTON) == HIGH) {
+        ledOn(CRGB::Red);
+        stop();
+        if (millis() - startTime > timeout){
+          turn_raw('l', 140, 90);
+          turn_raw('l', 140, 90);
+          break;
+      }
+      }
+      
+      return true;
+    }
+    if (minVal > analogRead(LINE_R) || analogRead(LINE_R) > maxVal) {
+      while (digitalRead(BUTTON) == HIGH) {
+        ledOn(CRGB::Red);
+        stop();
+        if (millis() - startTime > timeout){
+          turn_raw('l', 140, 90);
+          turn_raw('l', 140, 90);
+          break;
+      }
+      }
+      return true;
+    }
+    if (minVal > analogRead(LINE_L) || analogRead(LINE_L) > maxVal) {
+      while (digitalRead(BUTTON) == HIGH) {
+        ledOn(CRGB::Red);
+        stop();
+        if (millis() - startTime > timeout){
+          turn_raw('l', 1200, 100);
+  
+          break;
+      }
+      }
+    return false;
+  }
+
+  else {
+    
+    if (minVal > analogRead(LINE_C) || analogRead(LINE_C) > maxVal) {
+      backward(30);
+      return true;
+    }
+    if (minVal > analogRead(LINE_R) || analogRead(LINE_R) > maxVal) {
+      turn_raw('l',50,50);
+      return true;
+    }
+    if (minVal > analogRead(LINE_L) || analogRead(LINE_L) > maxVal) {
+      turn_raw('r',50,50);
+      return true;
+    }
+    return false;
+  }
+}
 }
 
 void turnGyro(char direction, int targetDegrees = 15, int speed = 120, int ms = 90) { 
@@ -167,7 +235,7 @@ void turnGyro(char direction, int targetDegrees = 15, int speed = 120, int ms = 
 }
 
 //=============================User Variable============================
-
+bool new_color= false;
 bool go = true;
 //-----------Use only when you want to globally contro the turning parameter---------------
 int turn_speed = 200;
@@ -190,13 +258,14 @@ int r_distance, straight_distance, l_distance; //used for
 //===========================THE CODE======================================
 
 void loop() {
-
+  
   line_left = analogRead(LINE_L) - 170; //calibrating...this one is usually a bit high than others
   line_middle = analogRead(LINE_C);
   line_right = analogRead(LINE_R);
   distance = getDistance();
   
   if (go) {
+    ledOn(CRGB(50,250,50));
     forward(base_speed);
     go = false;
   }
@@ -208,6 +277,7 @@ void loop() {
 
 //=============================Box entrance logic=================
   if (distance < 18){
+    ledOn(CRGB(100,255,255));
       while (distance > 8){
         forward(100);
         distance = getDistance();
@@ -219,7 +289,12 @@ void loop() {
 
 
 //================Course Correction Triger Logic===========
-  if (line_triger || turn_90triger){
+  if (detectNewColor()){
+    new_color=true;
+  }
+
+  if (turn_90triger ){
+    ledOn(CRGB(100,5,70));
     stop();
     course_corection();
     go = true;

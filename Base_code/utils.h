@@ -31,3 +31,6 @@ void resetAngle();
 float getAngle();
 int getDistance_accuracy();
 int getDistance();
+int seenColorVals[3];
+
+
