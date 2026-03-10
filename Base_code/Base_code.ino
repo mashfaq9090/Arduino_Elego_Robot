@@ -13,7 +13,7 @@
 #include <Wire.h>
 int seenColorVals[6];
 int mode = 0;  // 0 = idle/stopped, 1 = forward/scanning, 2 = wall detected
-bool avoid = true;
+// bool avoid = true;
 int turns = 0;
 int BASESPEED = 90;
 void setup() {
@@ -67,6 +67,9 @@ void setup() {
   seenColorVals[0] = (analogRead(LINE_L) - 170);  // inaccuracy offset
   seenColorVals[1] = (analogRead(LINE_R));
   seenColorVals[2] = (analogRead(LINE_C));
+  seenColorVals[3] = 0;
+  seenColorVals[4] = 0;
+  seenColorVals[5] = 0;
 }
 
 //===================MOTOR FUNCTIONS============================
@@ -160,45 +163,25 @@ void changeColors(){
 }
 
 bool detectNewColor() {
-  lastCourseChange = 1;
+  
   int maxVal = max(seenColorVals[2], max(seenColorVals[0], seenColorVals[1])) + 80;
   int minVal = min(seenColorVals[2], min(seenColorVals[0], seenColorVals[1])) - 80;
   int left = analogRead(LINE_L);
   int center = analogRead(LINE_C);
   int right = analogRead(LINE_R);
-
-  if (avoid) {
-    BASESPEED = 80;
+  int currVal = (left + center + right) /3
+  lastCourseChange = 1;
+  BASESPEED = 80;
+  int avoidVal = (seenColorVals[3]+seenColorVals[4]+seenColorVals[5])/3
+  if (currVal < avoidVal + 40 && currVal > avoidVal - 40 ) {
     if (minVal > center || center > maxVal) {
-      stop();
-      return true;
-    }
-    if (minVal > right || right > maxVal) {
-      stop();
-      return true;
-    }
-    if (minVal > left || left > maxVal) {
-      stop();
-      return true;
-    }
-    return false;
-  }
-
-  else {
-    BASESPEED = 80;
-    if (minVal > center || center > maxVal) {
-      backward(20);
       delay(200);
       stop();
-      for (int i = 0; i < 4; i++) {
+      for (int i = 0; i < 16; i++) {
         turnGyro('r');
         if (minVal < center && center < maxVal) return false;
       }
-      turnGyro('l', 90, 90);
-      for (int i = 0; i < 4; i++) {
-        turnGyro('l');
-        if (minVal < center && center < maxVal) return false;
-      }
+     
       changeColors();
       return true;
     }
@@ -211,8 +194,26 @@ bool detectNewColor() {
       return true;
     }
     return false;
+  
+  }
+
+  else {
+    if (minVal > center || center > maxVal) {
+      stop();
+      return true;
+    }
+    if (minVal > right || right > maxVal) {
+      stop();
+      return true;
+    }
+    if (minVal > left || left > maxVal) {
+      stop();
+      return true;
+    }
+    return false;
   }
 }
+
 void servoSweep() {
 
   // Only move the servo every 500ms
@@ -231,6 +232,10 @@ void servoSweep() {
 void loop() {
   switch (mode) {
 
+    case -1:{
+      stop();
+
+    }
     case 0:{
       stop();
       ledOn(CRGB(120, 20, 120));
@@ -242,9 +247,7 @@ void loop() {
           changeColors();
           break;
         }
-
         if (millis() - start > wait) {
-          turnGyro('r', 180, 90);
           break;
         }
       }
@@ -291,7 +294,7 @@ void loop() {
       if (turns >= 3) {
         mode = 0;
         turns = 0;
-        avoid = !avoid;
+        // avoid = !avoid;
       }
       turns++;
       break;
