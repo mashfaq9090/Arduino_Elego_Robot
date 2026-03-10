@@ -18,7 +18,7 @@
 #define LINE_R A0             // Right Line Tracker
 #define BUTTON 2              // Push Button
 #define GYRO 0x68             // Gyro Sensor Address
-
+#define IR  6                 // Infared Sensor, could be D6
 // ====== PROGRAM CONSTANTS ======
 #define SPEED_NORMAL 150
 #define SPEED_TURN 100

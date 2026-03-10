@@ -11,8 +11,8 @@
 #include <FastLED.h>
 #include <Servo.h>
 #include <Wire.h>
-int seenColorVals[3];
-int state = 0;  // 0 = idle/stopped, 1 = forward/scanning, 2 = wall detected
+int seenColorVals[6];
+int mode = 0;  // 0 = idle/stopped, 1 = forward/scanning, 2 = wall detected
 bool avoid = true;
 int turns = 0;
 int BASESPEED = 90;
@@ -49,28 +49,24 @@ void setup() {
   // Initialize Servo motor
   scanServo.attach(SERVO);
   centerServo();  // Center position
-
   // Wait for button press
   while (digitalRead(BUTTON) == HIGH) {
   }
+  ledOn(CRGB(98, 98, 98));
 
   delay(500);
 
   // Initialize Gyro - hard stop if failed
   if (!setupGyro()) {
     ledOn(CRGB::Red);
-    while (true)
-      ;  // Hard stop
+    while (true);  // Hard stop
   }
-
+  ledOff();
   calibrateGyro();
-  state = 1;
-  seenColorVals[0] = (analogRead(LINE_L));
+  mode = 1;
+  seenColorVals[0] = (analogRead(LINE_L) - 170);  // inaccuracy offset
   seenColorVals[1] = (analogRead(LINE_R));
   seenColorVals[2] = (analogRead(LINE_C));
-  // Serial.println(seenColorVals[0]);
-  // Serial.println(seenColorVals[1]);
-  // Serial.println(seenColorVals[2]);
 }
 
 //===================MOTOR FUNCTIONS============================
@@ -142,10 +138,7 @@ int r_distance = 10000;
 int l_distance = 10000;
 unsigned long lastServoMove = 0;
 int sweepStep = 0;
-//int angles[] = {90, 50, 40, 30, 90, 150, 160, 170, 90};
-//int angles[] = {30, 50, 70, 90, 110, 130, 150, 170, 150, 130, 110, 90, 70, 50};
-//int angles[] = {90, 40, 70, 90, 90, 90, 140, 170};
-//              0   1   2   3   4   5   6     7
+int lastCourseChange = 0; // 0 is none, 1 is line sensor, 2 is servo sensor
 int angles[] = { 90, 10, 10, 90, 90, 170, 170 };
 //              0   1   2   3    4   5    6
 
@@ -157,26 +150,25 @@ int turn_duration = 120;
 
 //===========================THE CODE======================================
 
-
+void changeColors(){
+  seenColorVals[0] = seenColorVals[3];
+  seenColorVals[1] = seenColorVals[4];
+  seenColorVals[2] = seenColorVals[5];
+  seenColorVals[0] = (analogRead(LINE_L));
+  seenColorVals[1] = (analogRead(LINE_R));
+  seenColorVals[2] = (analogRead(LINE_C));
+}
 
 bool detectNewColor() {
-  int maxVal = max(seenColorVals[2], max(seenColorVals[0], seenColorVals[1])) + 130;
-  int minVal = min(seenColorVals[2], min(seenColorVals[0], seenColorVals[1])) - 130;
+  lastCourseChange = 1;
+  int maxVal = max(seenColorVals[2], max(seenColorVals[0], seenColorVals[1])) + 80;
+  int minVal = min(seenColorVals[2], min(seenColorVals[0], seenColorVals[1])) - 80;
   int left = analogRead(LINE_L);
   int center = analogRead(LINE_C);
   int right = analogRead(LINE_R);
-  // delay(300);
-  Serial.println(avoid);
-  // Serial.println(maxVal);
-  // Serial.println(minVal);
-  // Serial.print("C: ");
-  // Serial.println(analogRead(LINE_C));
-  // Serial.print("r: ");
-  // Serial.println(analogRead(LINE_R));
-  // Serial.print("l: ");
-  // Serial.println(analogRead(LINE_L));
+
   if (avoid) {
-    BASESPEED = 90;
+    BASESPEED = 80;
     if (minVal > center || center > maxVal) {
       stop();
       return true;
@@ -189,29 +181,26 @@ bool detectNewColor() {
       stop();
       return true;
     }
-    resetAngle();
     return false;
   }
 
   else {
-    BASESPEED = 40;
+    BASESPEED = 80;
     if (minVal > center || center > maxVal) {
       backward(20);
       delay(200);
       stop();
       for (int i = 0; i < 4; i++) {
         turnGyro('r');
-        if (minVal < center && center < maxVal) return;
+        if (minVal < center && center < maxVal) return false;
       }
       turnGyro('l', 90, 90);
       for (int i = 0; i < 4; i++) {
         turnGyro('l');
-        if (minVal < center && center < maxVal) return;
+        if (minVal < center && center < maxVal) return false;
       }
-      if (minVal > center || center > maxVal) {
-        state = 0;
-        avoid = !avoid;
-      }
+      changeColors();
+      return true;
     }
     if (minVal > right || right > maxVal) {
       turnGyro('l', 10);
@@ -240,59 +229,75 @@ void servoSweep() {
   }
 }
 void loop() {
+  switch (mode) {
 
-  switch (state) {
-
-    case 0:
+    case 0:{
       stop();
-      ledOn(CRGB(120, 20, 200));
+      ledOn(CRGB(120, 20, 120));
+      unsigned long start = millis();
+      unsigned long wait = 3000;  // wait 3 secs
       while (detectNewColor()) {
+
         if (digitalRead(BUTTON) == LOW) {
-          seenColorVals[0] = (analogRead(LINE_L));
-          seenColorVals[1] = (analogRead(LINE_R));
-          seenColorVals[2] = (analogRead(LINE_C));
-          avoid = !avoid;
+          changeColors();
+          break;
+        }
+
+        if (millis() - start > wait) {
+          turnGyro('r', 180, 90);
           break;
         }
       }
-      state = 1;
+      mode = 1;
       break;
-
-    case 1:
+      }
+    case 1:{
       ledOn(CRGB(60, 230, 60));
       forward(BASESPEED);
-      delay(450);
+      delay(200);
       servoSweep();
-      if (detectNewColor()) {
-        state = 0;
-        stop();
+      //prioritizes the the last used course correction mode last, defaults to obstacle first
+      if (lastCourseChange == 2){
+        if (detectNewColor()) {
+          mode = 0;
+          stop();
+        }
+        if ((r_distance < 25) || (l_distance < 25) || (straight_distance < 20)) {
+          mode = 2;
+          stop();
+        }
       }
-      if ((r_distance < 25) || (l_distance < 25) || (straight_distance < 20)) {
-        state = 2;
-        stop();
+      else{
+        if ((r_distance < 25) || (l_distance < 25) || (straight_distance < 20)) {
+          mode = 2;
+          stop();
+        }
+        if (detectNewColor()) {
+          mode = 0;
+          stop();
+        }
       }
       break;
-
-    case 2:
+      }
+    case 2:{
       ledOn(CRGB(230, 90, 20));
       servoSweep();
       delay(200);
       courseCorrection();
       if ((r_distance > 25) && (l_distance > 25) && (straight_distance > 20)) {
-        state = 1;
+        mode = 1;
         turns = 0;
       }
-      if (turns >= 10) {
-        state = 0;
+      if (turns >= 3) {
+        mode = 0;
         turns = 0;
         avoid = !avoid;
       }
       turns++;
-      // Serial.print(turns);
       break;
+      }
   }
 
-  // Serial.print(millis());
 
   //============================debug====================
   // Serial.print("R: ");
@@ -308,6 +313,7 @@ void loop() {
 
 //===============================SLAM==========================
 void courseCorrection() {
+  lastCourseChange = 2;
   if (r_distance < l_distance) {
     // Serial.println("=========LEFT=========");
     turnGyro('l', 30);
