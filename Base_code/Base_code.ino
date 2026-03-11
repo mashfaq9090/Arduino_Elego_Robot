@@ -11,8 +11,8 @@
 #include <FastLED.h>
 #include <Servo.h>
 #include <Wire.h>
-int seenColorVals[6];
-int mode = 0;  // 0 = idle/stopped, 1 = forward/scanning, 2 = wall detected
+int seenColorVals[4];
+int mode = 0;  // -1 = danger, 0 = idle/stopped, 1 = forward/scanning, 2 = wall detected
 // bool avoid = true;
 int turns = 0;
 int BASESPEED = 90;
@@ -59,17 +59,17 @@ void setup() {
   // Initialize Gyro - hard stop if failed
   if (!setupGyro()) {
     ledOn(CRGB::Red);
-    while (true);  // Hard stop
+    while (true)
+      ;  // Hard stop
   }
   ledOff();
   calibrateGyro();
   mode = 1;
-  seenColorVals[0] = (analogRead(LINE_L) - 170);  // inaccuracy offset
-  seenColorVals[1] = (analogRead(LINE_R));
-  seenColorVals[2] = (analogRead(LINE_C));
-  seenColorVals[3] = 0;
-  seenColorVals[4] = 0;
-  seenColorVals[5] = 0;
+  // analog reading left is broken ( senor cover/chasis has fallen off somehow)
+  seenColorVals[0] = (analogRead(LINE_R) + 30);
+  seenColorVals[1] = (analogRead(LINE_C) );
+  seenColorVals[2] = -100;
+  seenColorVals[3] = -100;
 }
 
 //===================MOTOR FUNCTIONS============================
@@ -136,16 +136,16 @@ void turnGyro(char direction, int degrees = 15, int speed = 145) {
 }
 
 //=============================User Variable============================
-int straight_distance = 0;
-int r_distance = 10000;
-int l_distance = 10000;
+int straight_dist = 0;
+int r_dist = 10000;
+int l_dist = 10000;
+int servoAngle = 0;
 unsigned long lastServoMove = 0;
 int sweepStep = 0;
-int lastCourseChange = 0; // 0 is none, 1 is line sensor, 2 is servo sensor
+int lastCourseChange = 0;  // 0 is none, 1 is line sensor, 2 is servo sensor
 int angles[] = { 90, 10, 10, 90, 90, 170, 170 };
 //              0   1   2   3    4   5    6
 
-bool go = true;
 int turn_speed = 200;
 int turn_duration = 120;
 //=======================================================================
@@ -153,35 +153,33 @@ int turn_duration = 120;
 
 //===========================THE CODE======================================
 
-void changeColors(){
-  seenColorVals[0] = seenColorVals[3];
-  seenColorVals[1] = seenColorVals[4];
-  seenColorVals[2] = seenColorVals[5];
-  seenColorVals[0] = (analogRead(LINE_L));
-  seenColorVals[1] = (analogRead(LINE_R));
-  seenColorVals[2] = (analogRead(LINE_C));
+void changeColors() {
+  seenColorVals[2] = seenColorVals[0];
+  seenColorVals[3] = seenColorVals[1];
+  seenColorVals[0] = (analogRead(LINE_R));
+  seenColorVals[1] = (analogRead(LINE_C));
 }
 
 bool detectNewColor() {
-  
-  int maxVal = max(seenColorVals[2], max(seenColorVals[0], seenColorVals[1])) + 80;
-  int minVal = min(seenColorVals[2], min(seenColorVals[0], seenColorVals[1])) - 80;
-  int left = analogRead(LINE_L);
+
+  int maxVal = min( max(seenColorVals[0], seenColorVals[1]),900) ;
+  int minVal = max(min(seenColorVals[0], seenColorVals[1]),0 );
   int center = analogRead(LINE_C);
-  int right = analogRead(LINE_R);
-  int currVal = (left + center + right) /3
+  int right = analogRead(LINE_R)+30;
+  int currVal = (center + right) / 2;
   lastCourseChange = 1;
+  
   BASESPEED = 80;
-  int avoidVal = (seenColorVals[3]+seenColorVals[4]+seenColorVals[5])/3
-  if (currVal < avoidVal + 40 && currVal > avoidVal - 40 ) {
-    if (minVal > center || center > maxVal) {
+  int avoidVal = (seenColorVals[3] + seenColorVals[2] ) / 2;
+  if (currVal < avoidVal + 40 && currVal > avoidVal - 40) {
+    
+    if ((minVal > center || center > maxVal) && (minVal > right || right > maxVal)) {
       delay(200);
       stop();
       for (int i = 0; i < 16; i++) {
         turnGyro('r');
-        if (minVal < center && center < maxVal) return false;
+        if (minVal < center && center  < maxVal) return false;
       }
-     
       changeColors();
       return true;
     }
@@ -189,12 +187,11 @@ bool detectNewColor() {
       turnGyro('l', 10);
       return true;
     }
-    if (minVal > left || left > maxVal) {
+    if (minVal > center || center > maxVal) {
       turnGyro('r', 10);
       return true;
     }
     return false;
-  
   }
 
   else {
@@ -203,10 +200,6 @@ bool detectNewColor() {
       return true;
     }
     if (minVal > right || right > maxVal) {
-      stop();
-      return true;
-    }
-    if (minVal > left || left > maxVal) {
       stop();
       return true;
     }
@@ -219,96 +212,122 @@ void servoSweep() {
   // Only move the servo every 500ms
   if (millis() - lastServoMove > 150) {
     setServoAngle(angles[sweepStep]);
-    if ((sweepStep == 1) || (sweepStep == 2)) { r_distance = getDistance(); }
-    if (angles[sweepStep] == 90) { straight_distance = getDistance(); }
-    if ((sweepStep == 5) || (sweepStep == 6)) { l_distance = getDistance(); }
+    if ((sweepStep == 1) || (sweepStep == 2)) { r_dist = min(getDistance(), 10000); }
+    if (angles[sweepStep] == 90) { straight_dist = min(getDistance(), 10000); }
+    if ((sweepStep == 5) || (sweepStep == 6)) { l_dist = min(getDistance(), 10000); }
 
     sweepStep++;
     sweepStep %= 6;
-
+    servoAngle= angles(sweepStep);
     lastServoMove = millis();
   }
 }
+void sweepTo(int degrees){
+  for 
+  servoAngle=degrees;
+}
+
 void loop() {
+  delay(500);
+  detectNewColor();
+  return;
   switch (mode) {
 
-    case -1:{
-      stop();
+    case -1:
+      {
+        stop();
+        ledOff();
+        digitalWrite(MTR_ENABLE, LOW);
+      }
 
-    }
-    case 0:{
-      stop();
-      ledOn(CRGB(120, 20, 120));
-      unsigned long start = millis();
-      unsigned long wait = 3000;  // wait 3 secs
-      while (detectNewColor()) {
+    case 0:
+      {
+        stop();
+        ledOn(CRGB(120, 20, 120));
+        unsigned long start = millis();
+        unsigned long wait = 3000;  // wait 3 secs
+        while (detectNewColor()) {
 
-        if (digitalRead(BUTTON) == LOW) {
-          changeColors();
-          break;
+          if (digitalRead(BUTTON) == LOW) {
+
+            break;
+          }
+          if (millis() - start > wait) {
+            changeColors();
+            break;
+          }
         }
-        if (millis() - start > wait) {
-          break;
-        }
-      }
-      mode = 1;
-      break;
-      }
-    case 1:{
-      ledOn(CRGB(60, 230, 60));
-      forward(BASESPEED);
-      delay(200);
-      servoSweep();
-      //prioritizes the the last used course correction mode last, defaults to obstacle first
-      if (lastCourseChange == 2){
-        if (detectNewColor()) {
-          mode = 0;
-          stop();
-        }
-        if ((r_distance < 25) || (l_distance < 25) || (straight_distance < 20)) {
-          mode = 2;
-          stop();
-        }
-      }
-      else{
-        if ((r_distance < 25) || (l_distance < 25) || (straight_distance < 20)) {
-          mode = 2;
-          stop();
-        }
-        if (detectNewColor()) {
-          mode = 0;
-          stop();
-        }
-      }
-      break;
-      }
-    case 2:{
-      ledOn(CRGB(230, 90, 20));
-      servoSweep();
-      delay(200);
-      courseCorrection();
-      if ((r_distance > 25) && (l_distance > 25) && (straight_distance > 20)) {
         mode = 1;
-        turns = 0;
+        break;
       }
-      if (turns >= 3) {
-        mode = 0;
-        turns = 0;
-        // avoid = !avoid;
+    case 1:
+      {
+        ledOn(CRGB(60, 230, 60));
+        forward(BASESPEED);
+        delay(200);
+        servoSweep();
+        //prioritizes the the last used course correction mode last, defaults to obstacle first
+        if (lastCourseChange == 2) {
+          if (detectNewColor()) {
+            mode = 0;
+            stop();
+          }
+          if ((r_dist < 25) || (l_dist < 25) || (straight_dist < 20)) {
+            mode = 2;
+            stop();
+          }
+        } else {
+          if ((r_dist < 25) || (l_dist < 25) || (straight_dist < 20)) {
+            mode = 2;
+            stop();
+          }
+          if (detectNewColor()) {
+            mode = 0;
+            stop();
+          }
+        }
+        break;
       }
-      turns++;
-      break;
+
+    case 2:
+      {
+        ledOn(CRGB(230, 90, 20));
+        servoSweep();
+        delay(200);
+        courseCorrection();
+        if ((r_dist > 25) && (l_dist > 25) && (straight_dist > 20)) {
+          mode = 1;
+          turns = 0;
+        }
+        if (turns >= 3) {
+          turns = 0;
+          int tries = 0;
+          while ((r_dist < 25 || l_dist < 25 || straight_dist < 20) && tries <= 3) {
+            backward(BASESPEED);
+            delay(2000);
+            stop();
+            servoSweep();
+            tries++;
+          }
+          if (tries == 4) {
+            mode = -1;
+          } else {
+            mode = 1;
+          }
+        }
+        turns++;
+        break;
       }
   }
 
 
   //============================debug====================
   // Serial.print("R: ");
-  // Serial.print(r_distance);
+  // Serial.print(r_dist);
   // Serial.print(" | L: ");
-  // Serial.print(l_distance);
+  // Serial.print(l_dist);
   // Serial.print(" | Straight: ");
-  // Serial.println(straight_distance);
+  // Serial.println(straight_dist);
 
   //======================================================
 }
@@ -317,42 +336,43 @@ void loop() {
 //===============================SLAM==========================
 void courseCorrection() {
   lastCourseChange = 2;
-  if (r_distance < l_distance) {
+  if (r_dist < l_dist) {
     // Serial.println("=========LEFT=========");
-    turnGyro('l', 30);
+    turnGyro('l', 20);
     centerServo();
     delay(10);
     sweepStep = 0;
-    r_distance = 10000;
-    l_distance = 10000;
-    straight_distance = 10000;
+    r_dist = 10000;
+    l_dist = 10000;
+    straight_dist = 10000;
   }
 
-  else if (r_distance > l_distance) {
+  else if (r_dist > l_dist) {
     // Serial.println("=========RIGHT=========");
-    turnGyro('r', 30);
+    turnGyro('r', 20);
     centerServo();
     delay(10);
     sweepStep = 0;
-    r_distance = 10000;
-    l_distance = 10000;
-    straight_distance = 10000;
+    r_dist = 10000;
+    l_dist = 10000;
+    straight_dist = 10000;
   }
 
-  else if (r_distance == l_distance) {
-    r_distance = 10000;
-    l_distance = 10000;
-    straight_distance = 10000;
+  else if (r_dist == l_dist) {
+    r_dist = 10000;
+    l_dist = 10000;
+    straight_dist = 10000;
     ledOn(CRGB::Red);
-    setServoAngle(90);
+    sweepTo(90);
+    
     delay(200);
     if (getDistance() < 10) {
-      setServoAngle(0);
+      sweepTo(0);
       delay(500);
-      r_distance = getDistance();
+      r_dist = getDistance();
       setServoAngle(180);
       delay(500);
-      l_distance = getDistance();
+      l_dist = getDistance();
       ledOn(CRGB::Pink);
     }
   }
