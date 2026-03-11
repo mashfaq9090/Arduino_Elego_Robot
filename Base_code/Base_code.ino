@@ -377,4 +377,43 @@ void courseCorrection() {
     }
   }
 }
+
+
+void GO_back(){
+
+  for (int i = 9; i > 0; i--){
+
+    if (actionList[i] % 2 != 0){
+      backward(int speed);
+    }
+
+    if (actionList[i] % 2 == 0 && actionList[i] > 0){
+     turnGyro('l', actionList[i], 145);
+    }
+
+    if (actionList[i] % 2 == 0 && actionList[i] < 0){
+     turnGyro('r', actionList[i], 145);
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 //=====================================================================
