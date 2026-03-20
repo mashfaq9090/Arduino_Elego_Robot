@@ -53,31 +53,11 @@ void ApplicationFunctionSet::ApplicationFunctionSet_Init(void)
   AppIR.DeviceDriverSet_IR_Init();
 }
 
-void ApplicationFunctionSet::ApplicationFunctionSet_IR(void)
+uint8_t ApplicationFunctionSet::ApplicationFunctionSet_IR(void)
 {
   uint8_t IR_button;
   if (AppIR.DeviceDriverSet_IR_Get(&IR_button))
   {
-    switch (IR_button)
-    {
-      case 1: Serial.println("Forward"); break;
-      case 2: Serial.println("Backward"); break;
-      case 3: Serial.println("Left"); break;
-      case 4: Serial.println("Right"); break;
-      case 5: Serial.println("OK"); break;
-      case 6: Serial.println("1"); break;
-      case 7: Serial.println("2"); break;
-      case 8: Serial.println("3"); break;
-      case 9: Serial.println("4"); break;
-      case 10: Serial.println("5"); break;
-      case 11: Serial.println("6"); break;
-      case 12: Serial.println("7"); break;
-      case 13: Serial.println("8"); break;
-      case 14: Serial.println("9"); break;
-      case 15: Serial.println("0"); break;
-      case 16: Serial.println("*"); break;
-      case 17: Serial.println("#"); break;
-      default: Serial.println("Unknown"); break;
-    }
+   return IR_button; 
   }
 }

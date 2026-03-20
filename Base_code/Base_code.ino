@@ -11,11 +11,10 @@
 #include <FastLED.h>
 #include <Servo.h>
 #include <Wire.h>
-int seenColorVals[4];
 int mode = 0;  // -1 = danger, 0 = idle/stopped, 1 = forward/scanning, 2 = wall detected
 // bool avoid = true;
 int turns = 0;
-int BASESPEED = 90;
+int BASESPEED = 70;
 void setup() {
   // setup LED
   FastLED.addLeds<NEOPIXEL, PIN_RBGLED>(leds, NUM_LEDS);
@@ -48,7 +47,7 @@ void setup() {
 
   // Initialize Servo motor
   scanServo.attach(SERVO);
-  centerServo();  // Center position
+  centerServo();  // left position
   // Wait for button press
   while (digitalRead(BUTTON) == HIGH) {
   }
@@ -66,10 +65,6 @@ void setup() {
   calibrateGyro();
   mode = 1;
   // analog reading left is broken ( senor cover/chasis has fallen off somehow)
-  seenColorVals[0] = (analogRead(LINE_R) + 30);
-  seenColorVals[1] = (analogRead(LINE_C) );
-  seenColorVals[2] = -100;
-  seenColorVals[3] = -100;
 }
 
 //===================MOTOR FUNCTIONS============================
@@ -144,7 +139,7 @@ unsigned long lastServoMove = 0;
 int sweepStep = 0;
 unsigned long currTime = millis();
 int actionNum = 0;
-int actionList[10]= {0,0,0,0,0,0,0,0,0,0};
+int actionList[10] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 int lastCourseChange = 0;  // 0 is none, 1 is line sensor, 2 is servo sensor
 int angles[] = { 90, 10, 10, 90, 90, 170, 170 };
 //              0   1   2   3    4   5    6
@@ -156,71 +151,61 @@ int turn_duration = 120;
 
 //===========================THE CODE======================================
 
-void changeColors() {
-  seenColorVals[2] = seenColorVals[0];
-  seenColorVals[3] = seenColorVals[1];
-  seenColorVals[0] = (analogRead(LINE_R));
-  seenColorVals[1] = (analogRead(LINE_C));
-}
-
-bool detectNewColor() {
-
-  // int maxVal = min( max(seenColorVals[0], seenColorVals[1]),900) ;
-  // int minVal = max(min(seenColorVals[0], seenColorVals[1]),0 );
-  // int center = analogRead(LINE_C);
-  // int right = analogRead(LINE_R)+30;
-  // int currVal = (center + right) / 2;
-  // lastCourseChange = 1;
-  
-  // BASESPEED = 80;
-  // int avoidVal = (seenColorVals[3] + seenColorVals[2] ) / 2;
-  // if (currVal < avoidVal + 40 && currVal > avoidVal - 40) {
+//
+void detectLine(bool follow) {
+  int left = analogRead(LINE_L);
+  int right = analogRead(LINE_R) + 30;
+  if (follow){
+    if(left > 500){
+      turnGyro('r');
+    }
+    if (right < 500){
+      turnGyro('l');
+    }
+  }
+  else{
+    if (left < 500 && right <500){
+      backward(BASESPEED);
+      delay(200);
+      turnGyro('r');
+    }
     
-  //   if ((minVal > center || center > maxVal) && (minVal > right || right > maxVal)) {
-  //     delay(200);
-  //     stop();
-  //     for (int i = 0; i < 16; i++) {
-  //       turnGyro('r');
-        
-  //       if (minVal < center && center  < maxVal) {
-  //         actionList[actionNum]= 15*i; 
-  //         actionNum++;   
-  //         return false;
-          
-  //         }
+    if (left < 500){
+      backward(BASESPEED);
+      delay(200);
+      turnGyro('r');
+    }
+    if (right < 500){
+      backward(BASESPEED);
+      delay(200);
+      turnGyro('l');
+    }
+    
+  }
 
-  //     }
-  //     actionList[actionNum]= 360; 
-  //     actionNum++;
-  //     changeColors();
-  //     return true;
-  //   }
-  //   if (minVal > right || right > maxVal) {
-  //     turnGyro('l', 10);
-  //     actionList[actionNum]= -10;
-  //     actionNum++;
-  //     return true;
-  //   }
-  //   if (minVal > center || center > maxVal) {
-  //     turnGyro('r', 10);
-  //     actionList[actionNum]= 10;
-  //     actionNum++;
-  //     return true;
-  //   }
-  //   return false;
-  // }
+}
+// may or may not work needs testing
+bool detectLedge() {
+  int left = analogRead(LINE_L);
+  int right = analogRead(LINE_R) + 30;
 
-  // else {
-  //   if (minVal > center || center > maxVal) {
-  //     stop();
-  //     return true;
-  //   }
-  //   if (minVal > right || right > maxVal) {
-  //     stop();
-  //     return true;
-  //   }
-  //   return false;
-  // }
+
+  int currAvg = (left + right) / 2;
+  lastCourseChange = 1;
+
+  BASESPEED = 70;
+
+  if (currAvg > 950) {
+
+
+    backward(40);
+    delay(500);
+    turnGyro(50);
+      stop();
+
+    return true;
+  }
+  return false;
 }
 
 void servoSweep() {
@@ -234,26 +219,27 @@ void servoSweep() {
 
     sweepStep++;
     sweepStep %= 6;
-    servoAngle= angles[sweepStep];
+    servoAngle = angles[sweepStep];
     lastServoMove = millis();
   }
 }
-void sweepTo(int degrees){
-  if (degrees == servoAngle) {return;}
-  for(int i = 0; i <= 3; i++){
-    if (degrees > servoAngle){
-      setServoAngle(servoAngle + (degrees/3));
+void sweepTo(int degrees) {
+  if (degrees == servoAngle) { return; }
+  for (int i = 0; i <= 3; i++) {
+    if (degrees > servoAngle) {
+      setServoAngle(servoAngle + (degrees / 3));
     }
-    if (degrees < servoAngle){
-      setServoAngle(servoAngle- (degrees/3));
+    if (degrees < servoAngle) {
+      setServoAngle(servoAngle - (degrees / 3));
     }
     delay(100);
   }
-  servoAngle=degrees;
+  servoAngle = degrees;
 }
 
 void loop() {
- 
+  
+  
   switch (mode) {
 
     case -1:
@@ -269,38 +255,38 @@ void loop() {
         ledOn(CRGB(120, 20, 120));
         unsigned long start = millis();
         unsigned long wait = 3000;  // wait 3 secs
-        while (detectNewColor()) {
+        while (detectLedge()) {
 
           if (digitalRead(BUTTON) == LOW) {
-
+            goBack();
             break;
           }
           if (millis() - start > wait) {
-            changeColors();
-            break;
+            mode = -1;
+            return;
           }
         }
         mode = 1;
-        currTime=millis();
+        currTime = millis();
         break;
       }
     case 1:
       {
-        
-        currTime= millis();
+
+        currTime = millis();
         ledOn(CRGB(60, 230, 60));
         forward(BASESPEED);
         delay(200);
         servoSweep();
         //finds last empty array
-        
-        if (actionNum ==10){
+
+        if (actionNum == 10) {
           goBack();
           mode = -1;
         }
         //prioritizes the the last used course correction mode last, defaults to obstacle first
         if (lastCourseChange == 2) {
-          if (detectNewColor()) {
+          if (detectLedge()) {
             actionList[actionNum] = millis() - currTime;
             actionNum++;
             mode = 0;
@@ -319,7 +305,7 @@ void loop() {
             mode = 2;
             stop();
           }
-          if (detectNewColor()) {
+          if (detectLedge()) {
             actionList[actionNum] = millis() - currTime;
             actionNum++;
             mode = 0;
@@ -375,22 +361,22 @@ void loop() {
 
 //===============================SLAM==========================
 void courseCorrection() {
-  if (c_dist < 25){  
-    turnGyro('r',90);
-    actionList[actionNum]= 90;
+  if (c_dist < 25) {
+    turnGyro('r', 90);
+    actionList[actionNum] = 90;
     actionNum++;
-    if(c_dist < 25){
-      turnGyro('l',180);
-      actionList[actionNum]= -180;
+    if (c_dist < 25) {
+      turnGyro('l', 180);
+      actionList[actionNum] = -180;
       actionNum++;
     }
-  }   
-  
+  }
+
   lastCourseChange = 2;
   if (r_dist < l_dist) {
     // Serial.println("=========LEFT=========");
     turnGyro('l', 20);
-    actionList[actionNum]= -20;
+    actionList[actionNum] = -20;
     actionNum++;
     centerServo();
     delay(10);
@@ -403,7 +389,7 @@ void courseCorrection() {
   else if (r_dist > l_dist) {
     // Serial.println("=========RIGHT=========");
     turnGyro('r', 20);
-    actionList[actionNum]= 20;
+    actionList[actionNum] = 20;
     actionNum++;
     centerServo();
     delay(10);
@@ -419,7 +405,7 @@ void courseCorrection() {
     c_dist = 10000;
     ledOn(CRGB::Red);
     centerServo();
-    
+
     delay(200);
     if (getDistance() < 10) {
       sweepTo(0);
@@ -432,21 +418,23 @@ void courseCorrection() {
     }
   }
 }
-void goBack(){
 
-  for (int i = 9; i > 0; i--){
-
-    if (actionList[i] % 2 != 0){
+void goBack() {
+  ledOn(CRGB::Chocolate);
+  // Serial.println(actionList);
+  for (int i = 9; i > 0; i--) {
+    
+    if (actionList[i] % 2 != 0) {
       backward(BASESPEED);
       delay(actionList[i]);
     }
 
-    if (actionList[i] % 2 == 0 && actionList[i] > 0){
-     turnGyro('l', -(actionList[i]), 145);
+    if (actionList[i] % 2 == 0 && actionList[i] > 0) {
+      turnGyro('l', -(actionList[i]), 145);
     }
 
-    if (actionList[i] % 2 == 0 && actionList[i] < 0){
-     turnGyro('r', actionList[i], 145);
+    if (actionList[i] % 2 == 0 && actionList[i] < 0) {
+      turnGyro('r', actionList[i], 145);
     }
   }
 }

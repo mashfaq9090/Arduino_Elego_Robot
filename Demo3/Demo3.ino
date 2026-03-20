@@ -16,7 +16,14 @@ void setup()
   Application_FunctionSet.ApplicationFunctionSet_Init();
 }
 
-void loop()
-{
-  Application_FunctionSet.ApplicationFunctionSet_IR();
+void loop(){
+  // refer to devicedriverset_xxx to see maping to numbers
+  uint8_t output = &Application_FunctionSet.ApplicationFunctionSet_IR();
+  if (output==1){
+    // do action
+  }
+  if (output ==2){
+    //do action
+  }
+  // ...
 }
