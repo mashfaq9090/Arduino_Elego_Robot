@@ -5,9 +5,12 @@
 #include "pin_def.h"
 #include "utils.h"
 
+
 // // ====== PROGRAM VARIABLES ======
 int16_t gyroZ;                // Raw gyro Z-axis reading
-float gyroZOffset = 0;        // Calibration offset
+// float gyroZOffset = 0;        // Calibration offset
+// float gyroXOffset  = 0;
+// float gyroYOffset  = 0;
 float currentAngle = 0;       // Current angle in degrees
 unsigned long lastTime = 0;   // Last read time
 CRGB leds[NUM_LEDS];          // Current LED Color values
@@ -67,8 +70,8 @@ void ledOff() {
 
 
 // ===== SERVO FUNCTIONS =====
+;  // your calibrated center in logical degrees
 
-// Set servo angle (0–180 degrees)
 void setServoAngle(int angle) {
   static int lastAngle = -1;
   angle = constrain(angle, 0, 200);
@@ -85,7 +88,6 @@ void setServoAngle(int angle) {
 void centerServo() {
   setServoAngle(90);
 }
-
 
 // ====== GYRO FUNCTIONS ======
 
@@ -133,49 +135,31 @@ void calibrateGyro() {
   currentAngle = 0;
 }
 
-// Read gyro Z-axis
-int16_t readGyroZ() {
-  Wire.beginTransmission(GYRO);
-  Wire.write(0x47);  // GYRO_ZOUT_H register
-  Wire.endTransmission(false);
-  Wire.requestFrom(GYRO, 2, true);
-  
-  int16_t gz = Wire.read() << 8 | Wire.read();
-  return gz;
-}
+// void calibrateGyro() {
+//   delay(500);
+//   long sumX = 0, sumY = 0, sumZ = 0;
+//   int samples = 500;
 
+//   for (int i = 0; i < samples; i++) {
+//     Wire.beginTransmission(GYRO);
+//     Wire.write(0x43);  // GYRO_XOUT_H — all 3 gyro axes from here
+//     Wire.endTransmission(false);
+//     Wire.requestFrom(GYRO, 6, true);
 
-// MUST be called frequently (e.g., every loop iteration)
-// Angle accuracy degrades if this is not called often
-void updateGyroAngle() {
-  unsigned long now = millis();
-  float dt = (now - lastTime) / 1000.0;  // Time in seconds
-  lastTime = now;
-  
-  // Read gyro
-  gyroZ = readGyroZ();
-  
-  // Convert to degrees per second (sensitivity = 131 for ±250 deg/s)
-  // INVERTED THE SIGN HERE to fix direction!
-  float gyroRate = -((gyroZ - gyroZOffset) / 131.0);
-  
-  // Integrate to get angle
-  currentAngle += gyroRate * dt;
-  
-  // Keep angle in range -180 to +180
-  if (currentAngle > 180) currentAngle -= 360;
-  if (currentAngle < -180) currentAngle += 360;
-}
+//     sumX += (int16_t)(Wire.read() << 8 | Wire.read());
+//     sumY += (int16_t)(Wire.read() << 8 | Wire.read());
+//     sumZ += (int16_t)(Wire.read() << 8 | Wire.read());
+//     delay(2);
+//   }
 
-// Reset angle to zero
-void resetAngle() {
-  currentAngle = 0;
-}
+//   gyroXOffset = sumX / samples;
+//   gyroYOffset = sumY / samples;
+//   gyroZOffset = sumZ / samples;
 
-// Get current angle
-float getAngle() {
-  return currentAngle;
-}
+//   Serial.print("[GYRO] Offsets X:"); Serial.print(gyroXOffset);
+//   Serial.print(" Y:"); Serial.print(gyroYOffset);
+//   Serial.print(" Z:"); Serial.println(gyroZOffset);
+// }
 
 // ===== ULTRASONIC SENSOR FUNCTIONS =====
 

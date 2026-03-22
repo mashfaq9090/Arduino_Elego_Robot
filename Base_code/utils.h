@@ -17,6 +17,7 @@ extern float currentAngle;
 extern unsigned long lastTime;   
 extern CRGB leds[NUM_LEDS];          
 extern Servo scanServo;
+extern bool gyro_avail;
 
 void ledOn(CRGB color);
 void ledOff();
@@ -25,12 +26,17 @@ void centerServo();
 
 bool setupGyro();
 void calibrateGyro();
-int16_t readGyroZ();
-void updateGyroAngle();
-void resetAngle();
-float getAngle();
 int getDistance_accuracy();
 int getDistance();
+<<<<<<< HEAD
 int seenColorVals[3];
+=======
+const int SERVO_CENTER_ANGLE = 135;
+void handle_ir(unsigned long code);
+void discreate_sweep();
+void sonar_debug();
+void line_debug();
+
+>>>>>>> ba6d1a8 (New features, Code Regactored)
 
 
