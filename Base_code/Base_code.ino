@@ -14,6 +14,8 @@
  ---> Fell free to change the code as needed :) 
 
 */
+
+
 #include <IRremote.hpp>  
 #include "IR_receiver.h"
 #include "pin_def.h"
@@ -22,7 +24,7 @@
 #include <Servo.h>
 #include <Wire.h>
 #include "attitude.h"
-#include "rover_camera_bridge.h"
+#include "motor_music.h" 
 
 //=============================User Variable============================
 
@@ -38,16 +40,19 @@ bool turn_90triger = false;
 int line_right = 0;
 int line_left = 0;
 int line_middle = 0;
-int base_speed = 50;
-int distance = 10000;
+int base_speed = 45;
+//int distance = 10000;
 int left_or_right = 0;
-int r_distance, straight_distance, l_distance = 0; 
+int r_distance, straight_distance, l_distance = 10000; 
 int angle_array[] = {90, 40, 70, 90, 90, 90, 140, 170};
 bool is_going_forward = false;
 int stuck_counter = 0;
 bool debug = false;
 bool line_logic = true;
-bool sonar_logic = false;
+bool sonar_logic = true;
+bool remote_stop = false;
+bool stuck_logic_on = false;
+int toggle = 0;
 //=======================================================================
 
 
@@ -104,15 +109,8 @@ void setup() {
   }
 
   calibrateGyro();
-<<<<<<< HEAD
-  seenColorVals[0] = (analogRead(LINE_L)-170);
-  seenColorVals[1] = (analogRead(LINE_R));
-  seenColorVals[2] = (analogRead(LINE_C));
-  
-=======
   ir_init();
 
->>>>>>> ba6d1a8 (New features, Code Regactored)
 }
 
 //===================MOTOR FUNCTIONS============================
@@ -152,7 +150,7 @@ void forward(int speed){
  *   Drives forward at full speed, then scales speed down
  *   as distance shrinks, stops at stop_dist (cm)
  *
- *   speed     — cruising speed (full speed when far away)
+ *   speed     — cruising speed 
  *   stop_dist — distance in cm to stop at
  */
 void forward_to_obstacle(int speed, int stop_dist) {
@@ -161,7 +159,7 @@ void forward_to_obstacle(int speed, int stop_dist) {
   while (true) {
     int dist = getDistance();
 
-    // Stop condition — reached target distance
+    // Stop condition 
     if (dist <= stop_dist) {
       stop();
       return;
@@ -185,7 +183,7 @@ void forward_to_obstacle(int speed, int stop_dist) {
     // Serial.print("dist: "); Serial.print(dist);
     // Serial.print("cm | speed: "); Serial.println(current_speed);
 
-    delay(50); // small tick delay for smooth speed updates
+    delay(50); 
   }
 }
 
@@ -212,71 +210,6 @@ void turn_raw(char direction, int ms=370, int speed=145 ){ //time based turning.
   analogWrite(PWR_L, speed);
   delay(ms);
   stop();
-}
-
-bool detectNewColor() {
-  int maxVal = max(seenColorVals[2], max(seenColorVals[0], seenColorVals[1])) + 130;
-  int minVal = min(seenColorVals[2], min(seenColorVals[0], seenColorVals[1])) - 130;
-  Serial.println(avoid);
-  unsigned long startTime = millis();
-  const unsigned long timeout = 2000;
-  bool avoid = true;
-  if (avoid) {
-    if (minVal > analogRead(LINE_C) || analogRead(LINE_C) > maxVal) {
-      while (digitalRead(BUTTON) == HIGH) {
-        ledOn(CRGB::Red);
-        stop();
-        if (millis() - startTime > timeout){
-          turn_raw('l', 140, 90);
-          turn_raw('l', 140, 90);
-          break;
-      }
-      }
-      
-      return true;
-    }
-    if (minVal > analogRead(LINE_R) || analogRead(LINE_R) > maxVal) {
-      while (digitalRead(BUTTON) == HIGH) {
-        ledOn(CRGB::Red);
-        stop();
-        if (millis() - startTime > timeout){
-          turn_raw('l', 140, 90);
-          turn_raw('l', 140, 90);
-          break;
-      }
-      }
-      return true;
-    }
-    if (minVal > analogRead(LINE_L) || analogRead(LINE_L) > maxVal) {
-      while (digitalRead(BUTTON) == HIGH) {
-        ledOn(CRGB::Red);
-        stop();
-        if (millis() - startTime > timeout){
-          turn_raw('l', 1200, 100);
-  
-          break;
-      }
-      }
-    return false;
-  }
-
-  else {
-    
-    if (minVal > analogRead(LINE_C) || analogRead(LINE_C) > maxVal) {
-      backward(30);
-      return true;
-    }
-    if (minVal > analogRead(LINE_R) || analogRead(LINE_R) > maxVal) {
-      turn_raw('l',50,50);
-      return true;
-    }
-    if (minVal > analogRead(LINE_L) || analogRead(LINE_L) > maxVal) {
-      turn_raw('r',50,50);
-      return true;
-    }
-    return false;
-  }
-}
 }
 
 void turnGyro(char direction, int targetDegrees = 15, int speed = 120, int ms = 90) { 
@@ -329,55 +262,54 @@ void turnGyro(char direction, int targetDegrees = 15, int speed = 120, int ms = 
   delay(ms);
 }
 
-<<<<<<< HEAD
-//=============================User Variable============================
-bool new_color= false;
-bool go = true;
-//-----------Use only when you want to globally contro the turning parameter---------------
-int turn_speed = 200;
-int turn_duration = 120;
-int turn_gyro_speed = 50;
-//----------------------------------------------------------------------------------
-bool sonar_triger = false; //use only when implementing sonar based navigation
-bool line_triger = false;
-bool turn_90triger = false;
-int line_right = 0;
-int line_left = 0;
-int line_middle = 0;
-int base_speed = 50;
-int distance = 10000;
-int left_or_right = 0;
-int r_distance, straight_distance, l_distance; //used for 
-//=======================================================================
-=======
+
+/*
+ * ramp_adjusted_speed()
+ * Returns boosted speed when rover is on an incline
+ */
+
+const float RAMP_THRESHOLD = 5.0;   // degrees — ignore small tilts
+const float RAMP_BOOST     = 3.0;   // extra PWM per degree of incline
+const int   RAMP_MAX_BOOST = 100;    // max extra speed added
+
+int ramp_adjusted_speed(int base) {
+  float pitch = attitude.angle.y;
+  float tilt  = abs(pitch);
+
+  if (tilt < RAMP_THRESHOLD) return base;  // flat ground — no boost
+
+  int boost = constrain((int)((tilt - RAMP_THRESHOLD) * RAMP_BOOST),
+                         0, RAMP_MAX_BOOST);
+
+  Serial.print("[RAMP] pitch: "); Serial.print(pitch, 1);
+  Serial.print("° | boost: +"); Serial.println(boost);
+
+  return constrain(base + boost, 0, 255);
+}
+
+
 /*
  * straight_line_pd():
  *   PD controller for gyro-guided straight driving
  *
- *   P term — corrects based on current angle (how far off are we?)
- *   D term — corrects based on rate of change (are we getting worse?)
+ *   P term — corrects based on current angle 
+ *   D term — corrects based on rate of change 
  *
- *   Tune KP first (start at 2.0, increase until it fights drift)
- *   Then tune KD to dampen oscillation (start at 0.5)
+ *   Tune KP first 
  */
 
 // PD tuning constants — adjust these
-float KP = 8;   // proportional gain — increase if still drifting
-float KD = 0.8;   // derivative gain   — increase if oscillating
->>>>>>> ba6d1a8 (New features, Code Regactored)
-
-float last_angle = 0;  // needed for D term — declare globally above loop()
+float KP = 8;   // proportional gain 
+float KD = 0.8;   // derivative gain  
+float last_angle = 0; 
 
 void straight_line_pd(int speed, bool debug = false) {
   updateAttitude();
   float angle = -(attitude.angle.z);
-
+  ledOn(CRGB::Green);
   is_going_forward = true;
 
-  // P term — how far off are we right now
   float p_term = angle * KP;
-
-  // D term — how fast is the angle changing (rate of drift)
   float d_term = (angle - last_angle) * KD;
   last_angle = angle;
 
@@ -403,96 +335,54 @@ void straight_line_pd(int speed, bool debug = false) {
     Serial.print(" | D: ");    Serial.print(d_term);
     Serial.print(" | corr: "); Serial.println(correction);
   }
+  ledOff();
 }
 
 //===========================THE CODE===================================================================||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
 void loop() {
-<<<<<<< HEAD
-  
-  line_left = analogRead(LINE_L) - 170; //calibrating...this one is usually a bit high than others
-  line_middle = analogRead(LINE_C);
-  line_right = analogRead(LINE_R);
-  distance = getDistance();
-  
-  if (go) {
-    ledOn(CRGB(50,250,50));
-    forward(base_speed);
-    go = false;
-  }
-
-
-  turn_90triger = (line_left > 600 && line_right > 600 && line_middle > 600); //trigers full 90 degree rotation when all sensors are in the tape
-  line_triger = (line_left > 600 || line_right > 600); // for attitude adjustment 
-
-
-//=============================Box entrance logic=================
-  if (distance < 18){
-    ledOn(CRGB(100,255,255));
-      while (distance > 8){
-        forward(100);
-        distance = getDistance();
-        Serial.println(distance);
-      }
-      stop();
-      digitalWrite(MTR_ENABLE, LOW);
-  }
-
-
-//================Course Correction Triger Logic===========
-  if (detectNewColor()){
-    new_color=true;
-  }
-
-  if (turn_90triger ){
-    ledOn(CRGB(100,5,70));
-=======
 
   unsigned long ir_code = ir_read();
   if (ir_code != IR_NONE) handle_ir(ir_code);
 
   updateAttitude();
 
-  line_left = analogRead(LINE_L); //calibrating...this one is usually a bit high than others
-  line_middle = analogRead(LINE_C) + 100;
+  line_left = analogRead(LINE_L); 
+  line_middle = analogRead(LINE_C) + 100; //calibrating...this one is usually a bit high than others
   line_right = analogRead(LINE_R);
-  distance = getDistance();
+  straight_distance = getDistance();
 
   //white bg and black border ----- '>'
   //black bg and white border ----- '<'
   // if black the sensor high, if white sensor low
-  turn_90triger = (line_left < 600 && line_right < 600); //trigers full 90 degree rotation when all sensors are in the tape
-  line_triger = (line_left < 600 || line_right < 600); // for attitude adjustment 
+  turn_90triger = (line_left > 600 && line_right > 600); //trigers full 90 degree rotation when all sensors are in the tape
+  line_triger = (line_left > 600 || line_right > 600); // for attitude adjustment 
 
 
 //================Course Correction Triger Logic===========
 
   if ((line_triger || turn_90triger) && line_logic){
->>>>>>> ba6d1a8 (New features, Code Regactored)
     stop();
     course_corection_line();
   } 
 
-  if(distance < 12 && sonar_logic){
-    stop_graceful(base_speed, 3);
-    ledOff();
-    ledOn(CRGB::Blue);
+  if(straight_distance < 12 && sonar_logic){
+    stop_graceful(base_speed, 5);
     discreate_sweep();
     course_correct_sonar();
     resetAttitude();
     last_angle = 0;
     delay(500);
-    ledOff();
   }
 
   //line_debug();
   //sonar_debug();
   //gyro_debug();
 
-  straight_line_pd(base_speed);
-  //stuck_detection();
-  // //attitude_debug();
-  // //delay(50);
+
+  if(!remote_stop && (toggle % 2 == 0)) {straight_line_pd(ramp_adjusted_speed(base_speed));}
+  if(stuck_logic_on) {stuck_detection();}
+
 
 }
 //==================================================================================================|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
@@ -500,24 +390,20 @@ void discreate_sweep(){
   setServoAngle(90);
   delay(500);
   //cam_take_picture();
-  delay(300);
   setServoAngle(0);
   delay(500);
   //cam_take_picture();
-  delay(300);
   r_distance = getDistance();
     delay(60);
   r_distance = getDistance();
   setServoAngle(180);
   delay(500);
   //cam_take_picture();
-  delay(300);
   l_distance = getDistance();
   delay(60);
   l_distance = getDistance();
   setServoAngle(90);
   delay(500);
-  sonar_debug();
 }
 
 //=================Course_correction========================
@@ -527,46 +413,63 @@ void course_corection_line() {
   left_or_right = random(2);  // random logic only used for custom maze....
   //better use right only turn for Original maze...alrhough random should work for both
 
-  if (line_left < 600 && line_right < 600){ 
+  if (line_left > 600 && line_right > 600){ 
+    ledOn(CRGB::Yellow);
     if (debug){ Serial.println("===IR======TURN 90======IR===");}
-    backward(50);
-    delay(220);
     stop();
+    backward(base_speed);
+    delay(220);
+    stop_graceful(base_speed, 5);
+
+    resetAttitude();
+    last_angle = 0;
     delay(400);
+    ledOff();
 
-    if (left_or_right == 0) {
-      //turn_raw('l', 600, 100); //------------> optimized for 90 degree turn
-      turn_raw('r', 550, 100);  //------------> Used for Custom maze
-      resetAttitude();
-      last_angle = 0;
-    } 
+    if (!sonar_logic){
+      if (left_or_right == 0) {
+        //turn_raw('l', 600, 100); //------------> optimized for 90 degree turn
+        turn_raw('r', 550, 100);  //------------> Used for Custom maze
+        resetAttitude();
+        last_angle = 0;
+      } 
 
-    if (left_or_right == 1) {
-      //turn_raw('l', 600, 100); //------------> optimized for 90 degree turn
-      turn_raw('l', 550, 100); //------------> Used for Custom maze
-      resetAttitude();
-      last_angle = 0;
-    } 
-    return;
+      if (left_or_right == 1) {
+        //turn_raw('l', 600, 100); //------------> optimized for 90 degree turn
+        turn_raw('l', 550, 100); //------------> Used for Custom maze
+        resetAttitude();
+        last_angle = 0;
+      } 
+      return; 
+      
+    } else {
+      discreate_sweep();
+      course_correct_sonar();
+      return;
+    }
   }
 
   //for attitude corection 
-  if (line_right < line_left && abs(line_right - line_left) > 160){
+  if (line_right > line_left && abs(line_right - line_left) > 160){
+    ledOn(CRGB::White);
     if (debug){ Serial.println("====IR=====LEFT=====IR====");}
     //turnGyro('l', 10, 100, 50);
-    turn_raw('l', 140, 90);
+    turn_raw('l', 100, 50);
     resetAttitude();
     last_angle = 0;
+    ledOff();
     return;
     
   }
 
-  if (line_left < line_right && abs(line_right - line_left) > 160){
+  if (line_left > line_right && abs(line_right - line_left) > 160){
+    ledOn(CRGB::White);
     if (debug){ Serial.println("====IR=====RIGHT=====IR====");}
     //turnGyro('r', 10, 100, 50);
-    turn_raw('r', 140, 90); 
+    turn_raw('r', 100, 50); 
     resetAttitude();
     last_angle = 0;
+    ledOff();
     return;
 
   }
@@ -576,24 +479,30 @@ void course_corection_line() {
 void course_correct_sonar(){
   is_going_forward = false;
   stuck_counter = 0;
-  if (r_distance < 15 && l_distance < 15){
+  if (r_distance < 17 && l_distance < 17){
     sonar_trapped();
     return;
   }
 
   if (r_distance > l_distance && abs(r_distance - l_distance) > 3){
-    turnGyro('r',90, 50, 100);
-    //resetAttitude();
+    ledOn(CRGB::Blue);
+    turnGyro('r', 45, 50, 100);
+    resetAttitude();
+    last_angle = 0;
     delay(400);
+    ledOff();
     if (debug){ Serial.println("<<<<SS=========RIGHT=========SS>>>>");}
     return;
     
   }
 
   if (r_distance < l_distance && abs(r_distance - l_distance) > 3){
-    turnGyro('l', 90, 50, 100);
-    //resetAttitude();
+    ledOn(CRGB::Blue);
+    turnGyro('l', 45, 50, 100);
+    resetAttitude();
+    last_angle = 0;
     delay(400);
+    ledOff();
     if (debug){ Serial.println("<<<<SS=========LEFT=========SS>>>>");}
     return;
   }
@@ -601,11 +510,15 @@ void course_correct_sonar(){
 
 void sonar_trapped(){
   stop();
-  backward(40);
+  ledOn(CRGB::DeepPink);
+  backward(base_speed);
   Serial.println("------------BACKED OFF: sonar trapped------------");
   delay(400);
   stop();
+  resetAttitude();
+  last_angle = 0;
   discreate_sweep();
+  ledOff();
   course_correct_sonar();
 }
 
@@ -654,7 +567,7 @@ void sonar_debug(){
   Serial.print(l_distance);
   // Serial.print(" | Straight: ");
   // Serial.println(straight_distance);
-  Serial.println(" | distance: " + String(distance));
+  Serial.println(" | distance: " + String(straight_distance));
   Serial.println("=========*****************=========");
 }
 
@@ -682,33 +595,64 @@ void handle_ir(unsigned long code) {
     case IR_STOP:
       Serial.println("[IR] STOP");
       is_going_forward = false;
+      remote_stop = false;
       stop();
+      resetAttitude();
+      last_angle = 0;
+      toggle ++;
       break;
 
     case IR_UP:
       Serial.println("[IR] FORWARD");
       is_going_forward = true;
       forward(base_speed);
+      delay(1000);
+      stop();
       break;
 
     case IR_DOWN:
       Serial.println("[IR] BACKWARD");
       is_going_forward = false;
       backward(base_speed);
+      delay(1000);
+      stop();
       break;
 
     case IR_LEFT:
       Serial.println("[IR] NUDGE LEFT");
       is_going_forward = false;
       turn_raw('l', IR_TURN_MS, IR_TURN_SPEED);
-      // resetAll();
+      resetAttitude();
+      last_angle = 0;
       break;
 
     case IR_RIGHT:
       Serial.println("[IR] NUDGE RIGHT");
       is_going_forward = false;
       turn_raw('r', IR_TURN_MS, IR_TURN_SPEED);
-      // resetAll();
+      resetAttitude();
+      last_angle = 0;
+      break;
+
+    case IR_Sound_1:
+      stop();
+      sound1();
+      resetAttitude();
+      last_angle = 0;
+      break;
+
+    case IR_Sound_2:
+      stop();
+      sound2();
+      resetAttitude();
+      last_angle = 0;
+      break;
+
+    case KEY_star:
+      stop();
+      resetAttitude();
+      last_angle = 0;
+      stuck_logic_on = true;
       break;
   }
 }

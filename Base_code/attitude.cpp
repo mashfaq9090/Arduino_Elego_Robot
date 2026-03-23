@@ -43,10 +43,10 @@ void resetAttitude() {
 
 /*
  * updateAttitude():
- *   Reads all 6 axes from MPU-6050 in one I2C burst (efficient)
- *   Integrates gyro → angular displacement (X, Y, Z degrees)
- *   Converts accel → m/s²  with gravity removed on Z
- *   Double integrates accel → velocity → position (drifts over time)
+ *   Reads all 6 axes from MPU-6050 
+ *   Integrates gyro --> angular displacement (X, Y, Z degrees)
+ *   Converts accel --> m/s²  with gravity removed on Z
+ *   Double integrates accel --> velocity --> position (drifts over time)
  *
  *   CALL THIS EVERY LOOP TICK — accuracy degrades if called infrequently
  */
@@ -55,12 +55,12 @@ void updateAttitude() {
   float dt = (now - attitude_last_time) / 1000.0;  // seconds since last call
   attitude_last_time = now;
 
-  // Guard against bad dt (first call or very long gap)
+  // Guard against bad dt 
   if (dt <= 0 || dt > 0.5) return;
 
   // ---- READ ALL 6 AXES IN ONE BURST (registers 0x3B to 0x48) ----
   Wire.beginTransmission(GYRO);
-  Wire.write(0x3B);  // starting register — ACCEL_XOUT_H
+  Wire.write(0x3B);  
   Wire.endTransmission(false);
   Wire.requestFrom(GYRO, 14, true);  // 14 bytes: accel(6) + temp(2) + gyro(6)
 
@@ -69,7 +69,7 @@ void updateAttitude() {
   int16_t raw_ay = Wire.read() << 8 | Wire.read();
   int16_t raw_az = Wire.read() << 8 | Wire.read();
 
-  // Temperature (registers 0x41-0x42) — discard
+  // Temperature — discard
   Wire.read(); Wire.read();
 //--------------------------------------------------------------------------------------------------------------------------
 
