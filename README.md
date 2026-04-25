@@ -38,18 +38,18 @@ We used all of our rover sensor to it's maximum potential.
 
 ## Maze solving Logic
 
-**First Maze**: For the first maze we decided to do small incremental steps and at each step fetch left and right distance data to make decisions weather a local branch was nearby. We call this `The turtle walk 🐢 method!!`. Based on visual inspection, we have realized this to be the most efficient way to travese a branch that directly leads us to the `narrow white trail`. 
+**First Maze**: For the first maze we decided to do small incremental steps and at each step fetch left and right distance data to make decisions whether a local branch was nearby. We call this **`The turtle walk 🐢 🐢 method!!`**. Based on visual inspection, we have realized this to be the most efficient way to travese a branch that directly leads us to the `narrow white trail`. 
 
-**Sencond Maze**: For the second maze we had a left biased logic, which has 2 mode. If either the left or the right distance was way to close we call it a `forced choice`, where the rover goes whichever is open. But if it see's both left and right and viable option we always choses left. Again we decided this logic to be the most optimal one based on visual inspection
+**Sencond Maze**: For the second maze we had a left biased logic, which has 2 mode. If either the left or the right distance was way to close we call it a `forced choice`, where the rover goes whichever is open. But if it see's both left and right as viable option we always choses left. Again we decided this logic to be the most optimal one based on visual inspection. 
 
 
 The above two logic are specific to how our instructor set up the maze :(
-However they are not true MAZE SOLVER. 
+  However they are not `true` MAZE SOLVER. 
 
 **Our vission for a true Maze Solver** (if we had infinite resource)
-Initially we were young and too ambitious. We had a vission to create a true SLAM maze solver. Our philosopy was if we record each and every decission in a struct in an array....there will be some logic out there that can solve the maze purely from seeing that struct. 
+Initially we were young and too ambitious. We had a vission to create a true SLAM maze solver. Our philosopy was if we record each and every decission in an array of  struct....there will be some logic out there that can solve the maze purely from seeing and analyzing that struct. 
 
-Our struc would look like the following
+Our struc would look like the following. We really empasized on making the struct as spacially efficient as we can. We used `uint8_t` and `char` instead of the traditional `int` to reduce overall space. And used bitmasking to encode direction data!!!
 
 ```C++ 
 //=============================================================
@@ -118,12 +118,13 @@ bool    loop_break    = false;
 
 ```
 
-But unfortunately we were running dangerously low on dynamic memory and had to scrath that idea. It was simply too much more our little robot. Plus we hadn't completly figured out what we would do with the struct. We had couple of ideas of `backtraking` we we see a brach make a parralel array and do some kind of checking ect ect...
+But unfortunately even with all those tricks we were running dangerously low on `dynamic memory` and had to scrath that idea. It was simply too much for our little robot. Plus we hadn't completly figured out what we would do with the struct. We had ideas of `backtraking` and if we see a brach we make a parralel array and do some kind of checking ect ect...but ultimately it was out of scope 😭😭😭
 
 
 `Inline comments are used heavily to accomodate beginers and explain specific funtionality further`
 
 `Feel free to adapt or expand the base code according to your projects need.`
+
 ## Clone to Run
 
 ### 1. Cloning the Repo:
