@@ -86,7 +86,7 @@ void setServoAngle(int angle) {
 
 // Center the servo
 void centerServo() {
-  setServoAngle(90);
+  setServoAngle(88);
 }
 
 // ====== GYRO FUNCTIONS ======
@@ -191,45 +191,48 @@ int getDistance() {
 
 // Returns distance in centimeters, or 0 if invalid
 //XXXXXXXXX Over Engineered for more statistically significant and error corrected value XXXXXXXXX
-int getDistance_accuracy() { 
-  int validReading = 0;
-  int attempts = 0;
+// int getDistance_accuracy() { 
+//   int validReading = 0;
+//   int attempts = 0;
   
-  while (validReading == 0 && attempts < 3) {
-    if (attempts > 0) delay(60);  // Only delay on retries
+//   while (validReading == 0 && attempts < 3) {
+//     if (attempts > 0) delay(60);  // Only delay on retries
     
-    // digitalWrite(US_OUT, LOW);
-    // delayMicroseconds(2);
-    // digitalWrite(US_OUT, HIGH);
-    // delayMicroseconds(10);
-    // digitalWrite(US_OUT, LOW);
-    long duration = pulseIn(US_IN, HIGH, 30000);
-    int distance = duration * 0.034 / 2;
-    int sample_size = 5;
+//     // digitalWrite(US_OUT, LOW);
+//     // delayMicroseconds(2);
+//     // digitalWrite(US_OUT, HIGH);
+//     // delayMicroseconds(10);
+//     // digitalWrite(US_OUT, LOW);
+//     long duration = pulseIn(US_IN, HIGH, 30000);
+//     int distance = duration * 0.034 / 2;
+//     int sample_size = 10;
 
-    int distance_array[sample_size] = {0};
-    for (int i = 0; i < sample_size; i++){
+//     int distance_array[sample_size] = {0};
+//     Serial.println("---------------Sampling start--------------------");
+//     for (int i = 0; i < sample_size; i++){
 
-      digitalWrite(US_OUT, LOW);
-      delayMicroseconds(2);
-      digitalWrite(US_OUT, HIGH);
-      delayMicroseconds(10);
-      digitalWrite(US_OUT, LOW);
-      duration = pulseIn(US_IN, HIGH, 30000);
-      distance = duration * 0.034 / 2;
-      distance_array[i] = distance;
-      delay(30);
-    }
+//       digitalWrite(US_OUT, LOW);
+//       delayMicroseconds(2);
+//       digitalWrite(US_OUT, HIGH);
+//       delayMicroseconds(10);
+//       digitalWrite(US_OUT, LOW);
+//       duration = pulseIn(US_IN, HIGH, 30000);
+//       distance = duration * 0.034 / 2;
+//       distance_array[i] = distance;
+//       Serial.println(String(distance) + "---->" + String(i));
+//       delay(45);
+//     }
+//     Serial.println("---------------Sampling end--------------------");
 
-    quickSort(distance_array, 0, sample_size - 1); 
+//     quickSort(distance_array, 0, sample_size - 1); 
 
-    distance = distance_array[(sample_size - 1)/2];
-    if (duration > 0 && distance <= 200) {
-      validReading = distance;
-    }
+//     distance = distance_array[(sample_size - 1)/2];
+//     if (duration > 0 && distance <= 200) {
+//       validReading = distance;
+//     }
     
-    attempts++;
-  }
+//     attempts++;
+//   }
   
-  return validReading;
-}
+//   return validReading;
+// }

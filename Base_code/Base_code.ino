@@ -30,31 +30,38 @@
 
 bool go = true;
 //-----------Use only when you want to globally contro the turning parameter---------------
-int turn_speed = 200;
-int turn_duration = 120;
-int turn_gyro_speed = 50;
+// int turn_speed = 200;
+// int turn_duration = 120;
+// int turn_gyro_speed = 50;
 //----------------------------------------------------------------------------------
-bool sonar_triger = false; //use only when implementing sonar based navigation
+// bool sonar_triger = false; //use only when implementing sonar based navigation
 bool line_triger = false;
 bool turn_90triger = false;
 int line_right = 0;
 int line_left = 0;
 int line_middle = 0;
-int base_speed = 45;
+uint8_t base_speed = 60;
 //int distance = 10000;
-int left_or_right = 0;
+uint8_t left_or_right = 0;
 int r_distance, straight_distance, l_distance = 10000; 
-int angle_array[] = {90, 40, 70, 90, 90, 90, 140, 170};
-bool is_going_forward = false;
-int stuck_counter = 0;
+// int angle_array[] = {90, 40, 70, 90, 90, 90, 140, 170};
+bool is_going_forward = false; //
+uint8_t stuck_counter = 0;
 bool debug = false;
-bool line_logic = true;
-bool sonar_logic = true;
-bool remote_stop = false;
-bool stuck_logic_on = false;
-int toggle = 0;
-//=======================================================================
-
+bool line_logic = true; //-------------------------------------------- 
+bool sonar_logic = true; //-------------------------------------------
+bool remote_stop = false; //----- Should be false
+bool stuck_logic_on = false; //----Should be false
+uint8_t toggle = 0;
+// bool line_back_and_forth = false;
+bool white_follow = false;
+// int sonar_trap_count = 0;
+uint8_t state_swapped = 0;
+bool first_maze = true;
+bool second_maze = false;
+int first_maze_counter = 0;
+//==========================================================================================================================================
+//===========================================================================================================================================
 
 void setup() {
   //random seed 
@@ -98,6 +105,7 @@ void setup() {
   while (digitalRead(BUTTON) == HIGH) {
 
   }
+  ledOn(CRGB::DarkGreen);
 
   delay(500);
 
@@ -111,7 +119,10 @@ void setup() {
   calibrateGyro();
   ir_init();
 
+  ledOff();
+
 }
+
 
 //===================MOTOR FUNCTIONS============================
 
@@ -281,8 +292,8 @@ int ramp_adjusted_speed(int base) {
   int boost = constrain((int)((tilt - RAMP_THRESHOLD) * RAMP_BOOST),
                          0, RAMP_MAX_BOOST);
 
-  Serial.print("[RAMP] pitch: "); Serial.print(pitch, 1);
-  Serial.print("° | boost: +"); Serial.println(boost);
+  // Serial.print("[RAMP] pitch: "); Serial.print(pitch, 1);
+  // Serial.print("° | boost: +"); Serial.println(boost);
 
   return constrain(base + boost, 0, 255);
 }
@@ -299,8 +310,8 @@ int ramp_adjusted_speed(int base) {
  */
 
 // PD tuning constants — adjust these
-float KP = 8;   // proportional gain 
-float KD = 0.8;   // derivative gain  
+const float KP = 8;   // proportional gain 
+const float KD = 0.8;   // derivative gain  
 float last_angle = 0; 
 
 void straight_line_pd(int speed, bool debug = false) {
@@ -338,8 +349,8 @@ void straight_line_pd(int speed, bool debug = false) {
   ledOff();
 }
 
-//===========================THE CODE===================================================================||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
-
+//===========================THE CODE================================|||||||||||||||||||||||||=========================================||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+//===========================THE CODE================================|||||||||||||||||||||||||=========================================||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 void loop() {
 
   unsigned long ir_code = ir_read();
@@ -352,12 +363,50 @@ void loop() {
   line_right = analogRead(LINE_R);
   straight_distance = getDistance();
 
-  //white bg and black border ----- '>'
-  //black bg and white border ----- '<'
+  //white bg and black border ----- '>' ----trigers when see black
+  //black bg and white border ----- '<' ----trigers when see white
   // if black the sensor high, if white sensor low
-  turn_90triger = (line_left > 600 && line_right > 600); //trigers full 90 degree rotation when all sensors are in the tape
-  line_triger = (line_left > 600 || line_right > 600); // for attitude adjustment 
 
+  if (line_left < 600 && line_right < 600){    
+    white_follow = true;
+    first_maze = false;
+    second_maze = true;
+    sonar_logic = false;
+    //Serial.println("---###--White Line Follow Logic HIT----------");
+    base_speed = 33;
+  }
+
+  if(white_follow == true){
+    turn_90triger = (line_left > 600 && line_right > 600); // ---- trigers when see black
+    line_triger = (line_left > 600 || line_right > 600);  // ---- trigers when see black
+  }
+
+  if (white_follow == true && (line_left > 600 && line_right > 600)){
+    stop();
+    delay(100);
+    sonar_logic = true;
+    delay(100);
+    white_follow = false;
+    line_triger = false;
+    turn_90triger = false;
+    state_swapped = state_swapped + 1;
+    base_speed = 60;
+    second_maze = true;
+    if (state_swapped == 2){
+      forward(40);
+      delay(60);
+      for (int c = 0; c < 10; c++){
+        ledOff();
+        delay(50);
+        ledOn(CRGB::DeepSkyBlue);
+      }
+      stop();
+      play_mario_complete();
+      stop();
+      digitalWrite(MTR_ENABLE, LOW);
+
+    }
+  }
 
 //================Course Correction Triger Logic===========
 
@@ -366,197 +415,239 @@ void loop() {
     course_corection_line();
   } 
 
-  if(straight_distance < 12 && sonar_logic){
-    stop_graceful(base_speed, 5);
+  // Fatal error...sensor disconencted....l0gic
+  if(straight_distance == 0){
+    stop();
+    digitalWrite(MTR_ENABLE, HIGH);
+    for (int c = 0; c < 5; c++){
+      ledOff();
+      delay(50);
+      ledOn(CRGB::Red1);
+    }
+    while (digitalRead(BUTTON) == HIGH) {
+
+    }
+    ledOff();
+  }
+
+
+  if (first_maze == true) {
+
+    straight_line_pd(50);
+    delay(400);
+    stop();
+
     discreate_sweep();
-    course_correct_sonar();
+
+    // center servo after sweep
+    setServoAngle(85);
+    delay(60);
+
+    int diff = r_distance - l_distance;
+
+    // deadband check first
+    if (abs(diff) <= 12) return;
+
+    // move forward once (shared)
+    forward(65);
+    delay(700);
+    stop();
+    delay(50);
+
+    // decide direction
+    char turn_dir = (diff > 0) ? 'r' : 'l';
+    turnGyro(turn_dir, 89, 65, 100);
+
     resetAttitude();
     last_angle = 0;
+
     delay(500);
   }
 
-  //line_debug();
-  //sonar_debug();
-  //gyro_debug();
+  if(second_maze == true) {straight_line_pd(ramp_adjusted_speed(base_speed));}
 
+  if(straight_distance < 5 && sonar_logic && second_maze == true){
+    stop();
+    discreate_sweep();
+    resetAttitude();
+    last_angle = 0;
+    if (second_maze == true){
+      bool r_open = r_distance > 13;
+      bool l_open = l_distance > 13;
+      if (r_open && l_open) {
+          //prefer left
+        forward(35);
+        delay(200);
+        turnGyro('l', 90, 60, 100);
+      } else {
+        uint8_t turned = course_correct_sonar();
+      }
+    resetAttitude();
+    last_angle = 0;
+    delay(500);
+   }
 
-  if(!remote_stop && (toggle % 2 == 0)) {straight_line_pd(ramp_adjusted_speed(base_speed));}
-  if(stuck_logic_on) {stuck_detection();}
-
-
+  }
 }
-//==================================================================================================|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+//==============================================================|||||||||||||||||||||||||===============================||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+//==============================================================|||||||||||||||||||||||||===============================||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
 void discreate_sweep(){
-  setServoAngle(90);
+  setServoAngle(85);
   delay(500);
   //cam_take_picture();
   setServoAngle(0);
   delay(500);
   //cam_take_picture();
-  r_distance = getDistance();
-    delay(60);
-  r_distance = getDistance();
+  r_distance = getDistanceReliable();
+  //   delay(60);
+  // r_distance = getDistance();
   setServoAngle(180);
   delay(500);
   //cam_take_picture();
-  l_distance = getDistance();
-  delay(60);
-  l_distance = getDistance();
-  setServoAngle(90);
+  l_distance = getDistanceReliable();
+  // delay(60);
+  // l_distance = getDistance();
+  setServoAngle(85);
   delay(500);
 }
 
-//=================Course_correction========================
+//=================Course_correction========================-----------------------------------------------------------------------------------
 void course_corection_line() {
   is_going_forward = false;
 
   left_or_right = random(2);  // random logic only used for custom maze....
   //better use right only turn for Original maze...alrhough random should work for both
+  if (!white_follow){
+    if (line_left < 600 && line_right < 600){ 
+      ledOn(CRGB::Yellow);
+      //if (debug){ Serial.println("===IR======TURN 90======IR===");}
+      stop();
+      backward(base_speed);
+      delay(220);
+      stop_graceful(base_speed, 5);
 
-  if (line_left > 600 && line_right > 600){ 
-    ledOn(CRGB::Yellow);
-    if (debug){ Serial.println("===IR======TURN 90======IR===");}
-    stop();
-    backward(base_speed);
-    delay(220);
-    stop_graceful(base_speed, 5);
+      resetAttitude();
+      last_angle = 0;
+      delay(400);
+      ledOff();
 
-    resetAttitude();
-    last_angle = 0;
-    delay(400);
-    ledOff();
+      if (!sonar_logic){
+        if (left_or_right == 0) {
+          //turn_raw('l', 600, 100); //------------> optimized for 90 degree turn
+          turn_raw('r', 550, 100);  //------------> Used for Custom maze
+          resetAttitude();
+          last_angle = 0;
+        } 
 
-    if (!sonar_logic){
-      if (left_or_right == 0) {
-        //turn_raw('l', 600, 100); //------------> optimized for 90 degree turn
-        turn_raw('r', 550, 100);  //------------> Used for Custom maze
-        resetAttitude();
-        last_angle = 0;
-      } 
+        if (left_or_right == 1) {
+          //turn_raw('l', 600, 100); //------------> optimized for 90 degree turn
+          turn_raw('l', 550, 100); //------------> Used for Custom maze
+          resetAttitude();
+          last_angle = 0;
+        } 
+        return; 
+        
+      } else {
+        discreate_sweep();
+        course_correct_sonar();
+        return;
+      }
+    }
 
-      if (left_or_right == 1) {
-        //turn_raw('l', 600, 100); //------------> optimized for 90 degree turn
-        turn_raw('l', 550, 100); //------------> Used for Custom maze
-        resetAttitude();
-        last_angle = 0;
-      } 
-      return; 
+    //for attitude corection 
+    if (line_right < line_left && abs(line_right - line_left) > 160){
+      ledOn(CRGB::White);
+      //if (debug){ Serial.println("====IR=====LEFT=====IR====");}
+      //turnGyro('l', 10, 100, 50);
+      turn_raw('l', 100, 50);
+      resetAttitude();
+      last_angle = 0;
+      ledOff();
+      return;
       
-    } else {
-      discreate_sweep();
-      course_correct_sonar();
+    }
+
+    if (line_left < line_right && abs(line_right - line_left) > 160){
+      ledOn(CRGB::White);
+      //if (debug){ Serial.println("====IR=====RIGHT=====IR====");}
+      //turnGyro('r', 10, 100, 50);
+      turn_raw('r', 100, 50); 
+      resetAttitude();
+      last_angle = 0;
+      ledOff();
+      return;
+
+    }
+  }
+
+  if (white_follow){
+
+    if (line_right > line_left && abs(line_right - line_left) > 160){
+      ledOn(CRGB::White);
+      //if (debug){ Serial.println("====IR=====LEFT=====IR====");}
+      //turnGyro('l', 10, 100, 50);
+      turn_raw('l', 100, 55);
+      resetAttitude();
+      last_angle = 0;
+      ledOff();
+      return;
+      
+    }
+
+    if (line_left > line_right && abs(line_right - line_left) > 160){
+      ledOn(CRGB::White);
+      //if (debug){ Serial.println("====IR=====RIGHT=====IR====");}
+      //turnGyro('r', 10, 100, 50);
+      turn_raw('r', 100, 55); 
+      resetAttitude();
+      last_angle = 0;
+      ledOff();
       return;
     }
   }
 
-  //for attitude corection 
-  if (line_right > line_left && abs(line_right - line_left) > 160){
-    ledOn(CRGB::White);
-    if (debug){ Serial.println("====IR=====LEFT=====IR====");}
-    //turnGyro('l', 10, 100, 50);
-    turn_raw('l', 100, 50);
-    resetAttitude();
-    last_angle = 0;
-    ledOff();
-    return;
-    
-  }
-
-  if (line_left > line_right && abs(line_right - line_left) > 160){
-    ledOn(CRGB::White);
-    if (debug){ Serial.println("====IR=====RIGHT=====IR====");}
-    //turnGyro('r', 10, 100, 50);
-    turn_raw('r', 100, 50); 
-    resetAttitude();
-    last_angle = 0;
-    ledOff();
-    return;
-
-  }
-
 }
+//------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-void course_correct_sonar(){
-  is_going_forward = false;
-  stuck_counter = 0;
-  if (r_distance < 17 && l_distance < 17){
-    sonar_trapped();
+uint8_t course_correct_sonar() {
+    if (r_distance <15 && l_distance <15 ) {
+        //sonar_trapped();
+        return;
+    }
+    if (r_distance > 8 && r_distance >= l_distance) {
+        turnGyro('r', 90, 60, 100);
+        return;
+    }
+    if (l_distance > 8) {
+        turnGyro('l', 90, 60, 100);
+        return ;
+    }
     return;
-  }
-
-  if (r_distance > l_distance && abs(r_distance - l_distance) > 3){
-    ledOn(CRGB::Blue);
-    turnGyro('r', 45, 50, 100);
-    resetAttitude();
-    last_angle = 0;
-    delay(400);
-    ledOff();
-    if (debug){ Serial.println("<<<<SS=========RIGHT=========SS>>>>");}
-    return;
-    
-  }
-
-  if (r_distance < l_distance && abs(r_distance - l_distance) > 3){
-    ledOn(CRGB::Blue);
-    turnGyro('l', 45, 50, 100);
-    resetAttitude();
-    last_angle = 0;
-    delay(400);
-    ledOff();
-    if (debug){ Serial.println("<<<<SS=========LEFT=========SS>>>>");}
-    return;
-  }
 }
 
 void sonar_trapped(){
   stop();
+  //sonar_trap_count = sonar_trap_count + 1;
   ledOn(CRGB::DeepPink);
   backward(base_speed);
-  Serial.println("------------BACKED OFF: sonar trapped------------");
+  //Serial.println("------------BACKED OFF: sonar trapped------------");
   delay(400);
   stop();
   resetAttitude();
   last_angle = 0;
-  discreate_sweep();
+  //discreate_sweep();
   ledOff();
-  course_correct_sonar();
+  //course_correct_sonar();
+  stop();
+  turnGyro('r', 90, 50, 100);
+  resetAttitude();
+  last_angle = 0;
+  turnGyro('r', 90, 50, 100);
+  resetAttitude();
+  last_angle = 0;
 }
 
-
-void stuck_detection(){
-  static float last_stuck_angle = 0;
-  static unsigned long stuck_timer = 0;
-
-  if (is_going_forward) {
-    stuck_counter++;
-    float angle_change = abs(attitude.angle.z - last_stuck_angle);
-    last_stuck_angle = attitude.angle.z;
-    Serial.println("Last angle -> " + String(last_stuck_angle) + " |Current angle -> " + String(attitude.angle.z) + " |Angle change -> " + String(angle_change) + 
-    " |Stuck Counter -> " + String(stuck_counter));
-    if (angle_change >= 0.2) {
-      Serial.println("TIMER RESET — angle_change: " + String(angle_change, 3));
-    }
-    if (angle_change < 0.2 & stuck_counter > 50) {
-      // Barely any rotation this tick — possible stuck
-      if (millis() - stuck_timer > 4500) {
-        ledOn(CRGB::DarkRed);
-        Serial.println("=== STUCK DETECTED : From: loop <gyro> ===");
-        stop();
-        backward(base_speed);
-        delay(400);
-        ledOff();
-        stop();
-        discreate_sweep();
-        course_correct_sonar();
-        resetAttitude();
-        stuck_timer = millis();  // reset timer after recovery
-      }
-    } else {
-      // Rover is rotating — definitely not stuck
-      stuck_timer = millis();  // keep resetting timer while moving
-    }
-  }
-}
 
 //============================ Sonar Sensor debug====================
 void sonar_debug(){
@@ -583,8 +674,6 @@ void line_debug(){
   Serial.println("=========*****************=========");
 
 }
-
-
 
 const int IR_TURN_MS    = 100;   // ms per nudge — tune for ~15°
 const int IR_TURN_SPEED = 100;   // motor speed during IR turns
@@ -635,16 +724,12 @@ void handle_ir(unsigned long code) {
       break;
 
     case IR_Sound_1:
-      stop();
-      sound1();
-      resetAttitude();
+      play_mario_complete();
       last_angle = 0;
       break;
 
     case IR_Sound_2:
-      stop();
       sound2();
-      resetAttitude();
       last_angle = 0;
       break;
 

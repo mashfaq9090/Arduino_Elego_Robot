@@ -14,33 +14,116 @@ The particular unit used by our group had the following constraints
 - The line detection left sensor value is 170 units weaker 
 
 ## Code base Structure
-
-- `6_7/6_7.ino` -> Experiment code that draws the number 67. Can safely ignore
 - `Base_code/` 
   - `Base_code.ino` -> Contains main logic for solving maze.
   - `pin_def.h` -> Pin definitions for sensors and motors.
   - `utils.cpp` & `utils.h` -> Utility functions used by `Base_code.ino`. Contains all the sensor functions
+  - multiple .h and .cpp for custom logic. The file name are self explanatory !!!
 - Additional Libraries -> `FastLED`: used for LED control (already included for reference).
 
 ## Base_code Folder
 
 The `Base_code/Base_code.ino` is intended as a starting point for new funtinality. Treat it as the main file. `pin_def.h` defines the pin mappings. Any additional sensors need to be included there. `utils.cpp` & `utils.h` are intended to include functions and APIs for new sensor that the `Base_code.ino` can call. By de-centralizing code into multiple files, maintenance and updates become easier.
 
-### Current logic
-Currently the code is intended for the rover to traverse and solve a distinct bi-color maze. The rover uses the IR sensor to measure the light intensity being reflected from the ground material. Darker ground/line gives lower values and lighter gives higher values. 
+## Final Logic
 
-The robot will go forward until it encounters a  bright color surface below it. If all three sensor touch the bright color object, then it will signal an 90 degree turn. If the rover drifts into the maze lining in which case eiter left or right sensor will get trigered, the rover will then correct it's corse accordingly. 
+This repo is our official code for solving a `sonar` based map autonomously. For our course finals we were required to solve two maze that were linked by a narrow white trail. 
 
-For the sake of solving the maze the rover randomly decides on a 50% probability whether to make a right or left 90 degree turn.
+#### Sensor Used
+We used all of our rover sensor to it's maximum potential. 
+
+- Sonar  --------------------> used for decision making
+- Gyroscope -----------------> used for precise turning
+- Line sensor ---------------> used for traversing the white trail. 
+
+## Maze solving Logic
+
+**First Maze**: For the first maze we decided to do small incremental steps and at each step fetch left and right distance data to make decisions weather a local branch was nearby. We call this `The turtle walk 🐢 method!!`. Based on visual inspection, we have realized this to be the most efficient way to travese a branch that directly leads us to the `narrow white trail`. 
+
+**Sencond Maze**: For the second maze we had a left biased logic, which has 2 mode. If either the left or the right distance was way to close we call it a `forced choice`, where the rover goes whichever is open. But if it see's both left and right and viable option we always choses left. Again we decided this logic to be the most optimal one based on visual inspection
+
+
+The above two logic are specific to how our instructor set up the maze :(
+However they are not true MAZE SOLVER. 
+
+**Our vission for a true Maze Solver** (if we had infinite resource)
+Initially we were young and too ambitious. We had a vission to create a true SLAM maze solver. Our philosopy was if we record each and every decission in a struct in an array....there will be some logic out there that can solve the maze purely from seeing that struct. 
+
+Our struc would look like the following
+
+```C++ 
+//=============================================================
+// MAZE SOLVER — Data Structure 
+//=============================================================
+
+// ---- Distance thresholds ----
+#define DEFINITELY_OPEN  20    // cm — treat as open path
+#define DEFINITELY_WALL  8     // cm — treat as wall
+
+// ---- Direction constants ----
+#define DIR_NONE   0x00
+#define DIR_FWD    0x01
+#define DIR_RIGHT  0x02
+#define DIR_LEFT   0x04
+#define DIR_BACK   0x08
+/*
+bit position:  7  6  5  4  3  2  1  0
+               0  0  0  0  B  L  R  F
+                           │  │  │  │
+                           │  │  │  └── bit0 = FORWARD  (0x01)
+                           │  │  └───── bit1 = RIGHT    (0x02)
+                           │  └──────── bit2 = LEFT     (0x04)
+                           └─────────── bit3 = BACK     (0x08)
+
+*/
+
+// ---- Alt direction constants ----
+#define ALT_NONE   'N'
+#define ALT_LEFT   'L'
+#define ALT_RIGHT  'R'
+
+// ---- Junction type constants ----
+#define TYPE_FORCED  'F'
+#define TYPE_CHOICE  'C'
+
+#define IS_OPEN(dist) (dist > 8)
+#define IS_WALL(dist) (dist <= 8)
+
+// ---- Junction struct ----
+struct Junction {
+    uint8_t  tried_dirs;  // bitmask of attempted directions
+    uint8_t  last_turn;   // turn made TO ARRIVE at this junction
+    uint16_t travel_ms;   // ms driven to reach here
+    char  type;        // TYPE_FORCED or TYPE_CHOICE
+    char  alt_dir;     // ALT_NONE, ALT_LEFT, ALT_RIGHT
+    uint8_t  alt_dist;    // distance of alt direction in cm
+};                        // 7 bytes per junction
+
+// ---- Stack ----
+const uint8_t MAX_JUNCTIONS = 30;
+Junction jstack[MAX_JUNCTIONS];  // 60 × 7 = 420 bytes
+uint8_t  stack_top = 0;          // current depth
+uint8_t last_maze_turn = DIR_NONE;
+
+// ---- Timing ----
+unsigned long drive_start_ms = 0;
+
+// ---- Loop detection ----
+uint8_t turnLog       = 0;
+bool    loop_break    = false;
+
+//=============================================================
+// MAZE SOLVER — Data Structure ------------------------------>>>>>>>>>> END
+//=============================================================
+
+```
+
+But unfortunately we were running dangerously low on dynamic memory and had to scrath that idea. It was simply too much more our little robot. Plus we hadn't completly figured out what we would do with the struct. We had couple of ideas of `backtraking` we we see a brach make a parralel array and do some kind of checking ect ect...
+
 
 `Inline comments are used heavily to accomodate beginers and explain specific funtionality further`
 
 `Feel free to adapt or expand the base code according to your projects need.`
-
-## 6_7 Folder
-
-The 6_7 Folder is purely for the memes and only has one purpose when run to draw out the numbers 67 in sequence (with regards to the hardware assumptions). This has almost no realistic use beyond this.
-
 ## Clone to Run
 
 ### 1. Cloning the Repo:
